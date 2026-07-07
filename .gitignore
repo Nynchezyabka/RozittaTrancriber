@@ -1,0 +1,43 @@
+# --- СЕКРЕТЫ И ЛИЧНЫЕ ДАННЫЕ (КРИТИЧНО) ---
+*.session
+*.session-journal
+config.json
+config_modern.json
+*.db
+*.db-journal
+*.db-wal
+
+# --- ПЕРСОНАЛЬНЫЕ ЛОГИ И ВЫВОД ---
+*.log
+*.tmp
+output/
+downloads/
+
+# --- ИНСТРУМЕНТЫ (AIDER & CLAUDE) ---
+.aider*
+.claude/
+
+# --- PYTHON И СБОРКА ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+/ENV
+dist/
+build/
+*.spec
+
+# --- СТОРОННИЙ КОД И IDE ---
+third-party-app/
+.vscode/
+.idea/
+.DS_Store
+patches/
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md
