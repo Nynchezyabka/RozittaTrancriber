@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="color-scheme" content="dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<title>RozittaTranscriber — Видео/аудио → Markdown</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+    --bg:            #2B2B2B;
+    --surface:       rgba(255,255,255,0.06);
+    --surface-hov:   rgba(255,255,255,0.10);
+    --border:        rgba(255,255,255,0.10);
+    --text:          #F0F0F0;
+    --text-sec:      #BBBBBB;
+    --orange:        #FF9500;
+    --orange-soft:   rgba(255,149,0,0.15);
+    --pink:          #FF6BC9;
+    --pink-soft:     rgba(255,107,201,0.15);
+    --success:       #00C853;
+    --success-soft:  rgba(0,200,83,0.15);
+    --error:         #FF4D4D;
+    --error-soft:    rgba(255,77,77,0.15);
+    --warning:       #FFAA00;
+    --warning-soft:  rgba(255,170,0,0.15);
+    --shadow:        0 8px 32px rgba(0,0,0,0.45);
+    --r:             14px;
+    --rsm:           8px;
+    --t:             all 0.2s ease;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+}
+
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ===== HEADER ===== */
+.header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 18px; height: 52px; flex-shrink: 0;
+    background: rgba(22,22,22,0.85);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 9px; }
+.logo-mark {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--pink), var(--orange));
+    display: grid; place-items: center; color: #fff; font-size: 0.8rem; flex-shrink: 0;
+}
+.logo-text {
+    font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--pink), var(--orange));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.logo-sub { font-size: 0.66rem; color: var(--text-sec); font-weight: 500; display: block; line-height: 1.1; }
+
+.header-right { display: flex; align-items: center; gap: 8px; }
+.status-pill {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.76rem; color: var(--text-sec);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 11px; backdrop-filter: blur(8px);
+}
+.status-pill .port { font-family: 'JetBrains Mono', monospace; color: var(--orange); font-size: 0.7rem; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success); flex-shrink: 0; }
+.status-dot.busy { background: var(--warning); box-shadow: 0 0 6px var(--warning); animation: blink 1.2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* ===== MOCK BANNER ===== */
+.mock-banner {
+    background: var(--warning-soft); border-bottom: 1px solid rgba(255,170,0,0.3);
+    color: var(--warning); font-size: 0.7rem;
+    padding: 4px 16px; display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+}
+.mock-banner i { font-size: 0.68rem; }
+.mock-banner b { font-weight: 600; }
+
+/* ===== SETTINGS BAR ===== */
+.settings-wrap { padding: 14px 18px 0; flex-shrink: 0; }
+.settings-card {
+    background: var(--surface);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow);
+}
+.settings-summary { display: none; align-items: center; gap: 10px; padding: 12px 14px; flex-wrap: wrap; }
+.settings-summary.show { display: flex; }
+.summary-text {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: var(--text-sec);
+    flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.summary-text .acc { color: var(--orange); }
+.summary-text .sep { color: rgba(255,255,255,0.2); margin: 0 4px; }
+
+.settings-expanded { padding: 18px; }
+.settings-expanded.hide { display: none; }
+.settings-title {
+    font-size: 0.9rem; font-weight: 600; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+}
+.settings-title i { background: var(--orange-soft); color: var(--orange); padding: 5px 6px; border-radius: 6px; font-size: 0.82rem; }
+
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+.field label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.78rem; color: var(--text-sec); margin-bottom: 5px; font-weight: 500;
+}
+.field label .opt { font-size: 0.66rem; color: rgba(255,255,255,0.35); font-weight: 400; margin-left: auto; }
+.inp-wrap { position: relative; }
+.inp-wrap input, .inp-wrap select, .inp-wrap textarea {
+    width: 100%; padding: 9px 11px;
+    background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: var(--rsm);
+    color: var(--text); font-size: 0.84rem; font-family: 'Inter', sans-serif; transition: var(--t);
+}
+.inp-wrap textarea { resize: vertical; min-height: 50px; line-height: 1.5; }
+.inp-wrap input.mono, .inp-wrap textarea.mono { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+.inp-wrap input:focus, .inp-wrap select:focus, .inp-wrap textarea:focus {
+    outline: none; border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft);
+}
+.inp-wrap.has-icon-left input { padding-left: 34px; }
+.inp-wrap .ico-left { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--orange); font-size: 0.82rem; pointer-events: none; }
+.inp-wrap .ico-right { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--text-sec); font-size: 0.82rem; cursor: pointer; }
+.inp-wrap .ico-right:hover { color: var(--orange); }
+
+.field-hint { font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 5px; line-height: 1.5; }
+.field-hint code { font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 4px; font-size: 0.68rem; color: var(--orange); }
+.field-hint b { color: var(--text); font-weight: 600; }
+
+.help-btn {
+    width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.06); color: var(--text-sec);
+    font-size: 0.58rem; cursor: pointer; display: grid; place-items: center; transition: var(--t);
+}
+.help-btn:hover { color: var(--orange); border-color: var(--orange); }
+.help-btn.on { color: var(--orange); border-color: var(--orange); background: var(--orange-soft); }
+.help-btn.active { color: var(--orange); border-color: var(--orange); background: var(--orange-soft); }
+.popover-wrap { position: relative; display: inline-flex; }
+.popover {
+    position: absolute; top: calc(100% + 8px); left: 0; z-index: 60;
+    width: min(340px, 80vw); padding: 12px 13px;
+    background: #1f1f1f; border: 1px solid var(--border);
+    border-radius: var(--rsm); box-shadow: var(--shadow);
+    font-size: 0.72rem; color: var(--text-sec); line-height: 1.6;
+    display: none; font-weight: 400;
+}
+.popover.show { display: block; animation: fadeIn 0.15s ease; }
+.popover::before {
+    content:''; position:absolute; top:-5px; left:7px; width:9px; height:9px;
+    background:#1f1f1f; border-left:1px solid var(--border); border-top:1px solid var(--border);
+    transform: rotate(45deg);
+}
+.popover b { color: var(--text); font-weight: 600; }
+.popover .ph-row + .ph-row { margin-top: 7px; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+/* chips for model */
+.chip-group { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.chip {
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    background: rgba(0,0,0,.2); border: 1px solid var(--border); border-radius: var(--rsm);
+    padding: 8px 4px; cursor: pointer; font-size: 0.74rem; color: var(--text-sec);
+    transition: var(--t); font-weight: 500; text-align: center;
+}
+.chip:hover { background: var(--surface-hov); color: var(--text); }
+.chip.on { background: var(--orange-soft); border-color: rgba(255,149,0,0.5); color: var(--orange); }
+.chip .rec { font-size: 0.54rem; color: var(--pink); font-weight: 700; }
+
+/* toggle */
+.toggle-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 9px 11px; background: rgba(0,0,0,.2); border: 1px solid var(--border);
+    border-radius: var(--rsm); cursor: pointer; transition: var(--t);
+}
+.toggle:hover { background: var(--surface-hov); }
+.toggle-label { font-size: 0.78rem; font-weight: 500; line-height: 1.2; }
+.toggle-label .desc { display: block; font-size: 0.64rem; color: var(--text-sec); font-weight: 400; margin-top: 2px; }
+.switch { width: 34px; height: 18px; border-radius: 18px; background: rgba(255,255,255,0.12); position: relative; transition: var(--t); flex-shrink: 0; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: var(--t); }
+.toggle.on .switch { background: var(--orange); }
+.toggle.on .switch::after { transform: translateX(16px); }
+
+/* buttons */
+.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--rsm);
+    background: rgba(0,0,0,0.3); color: var(--text); font-size: 0.84rem; font-weight: 500;
+    font-family: 'Inter', sans-serif; cursor: pointer; transition: var(--t);
+}
+.btn:hover { background: var(--surface-hov); }
+.btn-primary { background: var(--orange); border-color: var(--orange); color: #fff; font-weight: 600; }
+.btn-primary:hover { background: #e08500; border-color: #e08500; }
+.btn-ghost-danger { color: var(--error); border-color: rgba(255,77,77,0.3); }
+.btn-ghost-danger:hover { background: var(--error-soft); }
+.btn-block { width: 100%; }
+.btn-lg { padding: 11px 16px; font-size: 0.88rem; }
+
+.safety-note {
+    margin-top: 12px; padding: 9px 11px; border: 1px dashed rgba(0,200,83,0.25); border-radius: var(--rsm);
+    background: rgba(0,200,83,0.05); font-size: 0.7rem; color: var(--text-sec); line-height: 1.55;
+}
+.safety-note i { color: var(--success); }
+.safety-note b { color: var(--success); }
+.safety-note code { font-family: 'JetBrains Mono', monospace; color: var(--orange); }
+
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+
+/* ===== WORKSPACE (2 cols) ===== */
+.workspace {
+    flex: 1; display: grid; grid-template-columns: 1fr 400px; gap: 14px;
+    padding: 14px 18px; min-height: 0;
+}
+.col { display: flex; flex-direction: column; min-width: 0; }
+
+.card {
+    background: var(--surface); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow);
+    display: flex; flex-direction: column; min-height: 0; flex: 1;
+}
+.card-head {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
+}
+.card-title { font-size: 0.92rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.card-title i { background: var(--orange-soft); color: var(--orange); padding: 5px 6px; border-radius: 6px; font-size: 0.82rem; }
+.count-chips { margin-left: auto; display: flex; gap: 5px; flex-wrap: wrap; }
+.cnt {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.66rem; font-weight: 600; padding: 3px 8px; border-radius: 20px;
+    border: 1px solid var(--border); background: rgba(0,0,0,0.25);
+}
+.cnt i { font-size: 0.58rem; }
+.cnt.green { color: var(--success); border-color: rgba(0,200,83,0.3); background: var(--success-soft); }
+.cnt.orange { color: var(--warning); border-color: rgba(255,170,0,0.3); background: var(--warning-soft); }
+.cnt.gray { color: var(--text-sec); }
+.cnt.red { color: var(--error); border-color: rgba(255,77,77,0.3); background: var(--error-soft); }
+
+.card-body { flex: 1; overflow-y: auto; padding: 12px; scrollbar-width: thin; scrollbar-color: rgba(255,149,0,0.5) transparent; }
+.card-body::-webkit-scrollbar { width: 5px; }
+.card-body::-webkit-scrollbar-thumb { background: rgba(255,149,0,0.5); border-radius: 3px; }
+
+/* file row */
+.file-row {
+    display: flex; align-items: center; gap: 11px; padding: 11px;
+    border-radius: var(--rsm); border: 1px solid var(--border); background: rgba(0,0,0,0.18);
+    transition: var(--t); cursor: pointer;
+}
+.file-row + .file-row { margin-top: 7px; }
+.file-row:hover { background: rgba(0,0,0,0.28); }
+.file-row.active { border-color: rgba(255,170,0,0.5); background: var(--warning-soft); }
+.file-row.selected { border-color: rgba(255,149,0,0.5); box-shadow: 0 0 0 1px rgba(255,149,0,0.3) inset; }
+.file-row.done { opacity: 0.78; }
+.file-row.skipped { opacity: 0.45; }
+.file-row.error { border-color: rgba(255,77,77,0.4); background: var(--error-soft); }
+
+.file-ico { width: 36px; height: 36px; border-radius: var(--rsm); flex-shrink: 0; display: grid; place-items: center; font-size: 0.9rem; }
+.file-ico.queued { background: rgba(255,255,255,0.06); color: var(--text-sec); }
+.file-ico.active { background: var(--warning-soft); color: var(--warning); }
+.file-ico.done { background: var(--success-soft); color: var(--success); }
+.file-ico.skipped { background: rgba(255,255,255,0.06); color: var(--text-sec); }
+.file-ico.error { background: var(--error-soft); color: var(--error); }
+
+.file-body { min-width: 0; flex: 1; }
+.file-name { font-size: 0.82rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-meta { display: flex; align-items: center; gap: 7px; margin-top: 3px; font-size: 0.68rem; color: var(--text-sec); flex-wrap: wrap; }
+.file-meta .badge { font-family: 'JetBrains Mono', monospace; background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 4px; font-size: 0.64rem; }
+.file-meta .badge.orange { background: var(--warning-soft); color: var(--warning); }
+.file-meta .badge.green { background: var(--success-soft); color: var(--success); }
+.file-meta .badge.red { background: var(--error-soft); color: var(--error); }
+.file-meta .code { font-family: 'JetBrains Mono', monospace; font-size: 0.66rem; color: var(--error); }
+
+.progress-track { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; margin-top: 7px; position: relative; }
+.progress-fill { height: 100%; background: var(--warning); border-radius: 3px; position: relative; }
+.progress-fill::after { content: ''; position: absolute; inset: 0; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.18) 0 6px, transparent 6px 12px); animation: stripe 1s linear infinite; }
+@keyframes stripe { from { background-position: 0 0; } to { background-position: 24px 0; } }
+
+.file-action { width: 30px; height: 30px; border-radius: var(--rsm); flex-shrink: 0; display: grid; place-items: center; background: none; border: 1px solid var(--border); color: var(--text-sec); cursor: pointer; transition: var(--t); font-size: 0.76rem; }
+.file-action:hover { background: var(--surface-hov); color: var(--text); }
+.file-action.danger:hover { color: var(--error); border-color: rgba(255,77,77,0.4); background: var(--error-soft); }
+.file-action.link { width: auto; padding: 0 10px; font-size: 0.7rem; }
+
+/* ===== RIGHT: PREVIEW ===== */
+.right-tabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.right-tab { padding: 10px 12px; font-size: 0.78rem; font-weight: 500; color: var(--text-sec); background: none; border: none; cursor: pointer; transition: var(--t); border-bottom: 2px solid transparent; font-family: 'Inter', sans-serif; }
+.right-tab:hover { color: var(--text); }
+.right-tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+.right-actions { margin-left: auto; display: flex; gap: 5px; padding: 6px 0; }
+
+.preview-file-bar { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.preview-file-bar .fname { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge-part { font-family: 'JetBrains Mono', monospace; background: var(--warning-soft); color: var(--warning); padding: 1px 6px; border-radius: 4px; font-size: 0.62rem; margin-left: auto; flex-shrink: 0; }
+
+.preview-md { font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; line-height: 1.75; padding: 16px; color: var(--text-sec); white-space: pre-wrap; word-break: break-word; }
+.preview-md .h1 { color: var(--orange); font-weight: 700; font-size: 0.9rem; }
+.preview-md .tc { color: var(--pink); font-weight: 600; }
+.preview-md .spk { font-weight: 600; cursor: pointer; padding: 1px 5px; margin: 0 1px; border-radius: 4px; color: var(--spk-fg, var(--orange)); background: var(--spk-bg, rgba(255,149,0,0.13)); border: 1px dashed transparent; transition: background .12s, border-color .12s; }
+.preview-md .spk:hover { background: var(--spk-bg-hover, rgba(255,149,0,0.24)); border-color: var(--spk-fg, var(--orange)); }
+.preview-md .spk-edited { border-style: solid; border-color: var(--spk-fg, var(--orange)); background: var(--spk-bg-hover, rgba(255,149,0,0.24)); }
+.preview-md .spk-edited:hover { filter: brightness(1.06); }
+.preview-md .spk-input { font-family: inherit; font-size: 0.76rem; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--spk-fg, var(--orange)); background: var(--bg); color: var(--fg); outline: none; width: 110px; }
+/* палитра спикеров: каждый SPEAKER_NN — свой цвет (по номеру % 8) */
+.preview-md .spk-0, .speaker-tag.spk-0, .speaker-row.spk-0 { --spk-fg: #FF9500; --spk-bg: rgba(255,149,0,0.14); --spk-bg-hover: rgba(255,149,0,0.26); }
+.preview-md .spk-1, .speaker-tag.spk-1, .speaker-row.spk-1 { --spk-fg: #FF6BC9; --spk-bg: rgba(255,107,201,0.15); --spk-bg-hover: rgba(255,107,201,0.27); }
+.preview-md .spk-2, .speaker-tag.spk-2, .speaker-row.spk-2 { --spk-fg: #4ECDC4; --spk-bg: rgba(78,205,196,0.15); --spk-bg-hover: rgba(78,205,196,0.27); }
+.preview-md .spk-3, .speaker-tag.spk-3, .speaker-row.spk-3 { --spk-fg: #FFD93D; --spk-bg: rgba(255,217,61,0.15); --spk-bg-hover: rgba(255,217,61,0.27); }
+.preview-md .spk-4, .speaker-tag.spk-4, .speaker-row.spk-4 { --spk-fg: #6BCB77; --spk-bg: rgba(107,203,119,0.16); --spk-bg-hover: rgba(107,203,119,0.28); }
+.preview-md .spk-5, .speaker-tag.spk-5, .speaker-row.spk-5 { --spk-fg: #B197FC; --spk-bg: rgba(177,151,252,0.16); --spk-bg-hover: rgba(177,151,252,0.28); }
+.preview-md .spk-6, .speaker-tag.spk-6, .speaker-row.spk-6 { --spk-fg: #74C0FC; --spk-bg: rgba(116,192,252,0.16); --spk-bg-hover: rgba(116,192,252,0.28); }
+.preview-md .spk-7, .speaker-tag.spk-7, .speaker-row.spk-7 { --spk-fg: #FF8787; --spk-bg: rgba(255,135,135,0.16); --spk-bg-hover: rgba(255,135,135,0.28); }
+
+/* ===== SPEAKERS PANEL ===== */
+.speakers-panel { border-top: 1px solid var(--border); background: rgba(255,149,0,0.05); padding: 10px 14px; }
+.speakers-panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.speakers-panel-title { font-size: 0.74rem; font-weight: 600; color: var(--text); }
+.speakers-tip { display: flex; gap: 8px; align-items: flex-start; background: rgba(255,149,0,0.10); border: 1px dashed rgba(255,149,0,0.45); border-radius: 8px; padding: 7px 10px; margin-bottom: 9px; font-size: 0.68rem; color: var(--text-sec); line-height: 1.45; }
+.speakers-tip i { color: var(--orange); margin-top: 2px; flex-shrink: 0; }
+.speakers-tip b { color: var(--orange); font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+.speakers-list { display: flex; flex-direction: column; gap: 6px; }
+.speaker-row { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
+.speaker-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--spk-fg, var(--orange)); background: var(--spk-bg, rgba(255,149,0,0.12)); padding: 4px 9px; border-radius: 5px; border: 1px dashed var(--spk-fg, rgba(255,149,0,0.6)); white-space: nowrap; }
+.speaker-row input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 5px 9px; color: var(--text); font-size: 0.76rem; font-family: inherit; outline: none; transition: border-color .12s; }
+.speaker-row input:focus { border-color: var(--spk-fg, var(--orange)); }
+.speaker-row input::placeholder { color: rgba(255,255,255,0.3); }
+.speakers-actions { display: flex; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
+.btn-sm { font-size: 0.72rem; padding: 5px 11px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: var(--t); }
+.btn-sm:hover { background: var(--surface-hov); }
+.btn-sm.primary { background: var(--orange); color: #1a1a1a; border-color: var(--orange); font-weight: 600; }
+.btn-sm.primary:hover { filter: brightness(1.08); }
+.preview-md .caret { display: inline-block; width: 7px; height: 0.95rem; background: var(--orange); vertical-align: text-bottom; animation: blink 1s step-end infinite; }
+.preview-md .live { color: rgba(255,255,255,0.3); font-style: italic; font-size: 0.7rem; }
+
+.card-foot { padding: 9px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.68rem; color: var(--text-sec); font-family: 'JetBrains Mono', monospace; flex-shrink: 0; }
+.card-foot .dot { color: rgba(255,255,255,0.2); }
+
+/* ===== FOOTER ===== */
+.app-footer {
+    padding: 8px 18px; border-top: 1px solid var(--border);
+    background: rgba(18,18,18,0.5); flex-shrink: 0;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    font-size: 0.68rem; color: var(--text-sec); font-family: 'JetBrains Mono', monospace;
+}
+.app-footer .acc { color: var(--orange); }
+.app-footer .sep { color: rgba(255,255,255,0.2); }
+.app-footer .right { margin-left: auto; }
+
+/* ===== MOBILE PREVIEW SHEET ===== */
+.sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.sheet-overlay.show { opacity: 1; pointer-events: auto; }
+.sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 201;
+    background: var(--bg); border-top: 1px solid var(--border); border-radius: 16px 16px 0 0;
+    transform: translateY(100%); transition: transform 0.25s ease; max-height: 85vh; display: flex; flex-direction: column;
+}
+.sheet.show { transform: translateY(0); }
+.sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); margin: 8px auto 4px; flex-shrink: 0; }
+.sheet-head { padding: 6px 14px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.sheet-head .title { font-size: 0.84rem; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-close { width: 30px; height: 30px; border-radius: var(--rsm); display: grid; place-items: center; background: none; border: 1px solid var(--border); color: var(--text-sec); cursor: pointer; }
+.sheet-body { flex: 1; overflow-y: auto; }
+
+/* ===== EMPTY STATE ===== */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-sec); }
+.empty-state i { font-size: 2.2rem; opacity: 0.4; margin-bottom: 12px; display: block; }
+.empty-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.empty-desc { font-size: 0.76rem; line-height: 1.6; max-width: 320px; margin: 0 auto; }
+
+/* ===== LOG PANEL ===== */
+.log-panel { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; line-height: 1.6; padding: 12px 16px; color: var(--text-sec); }
+.log-line { padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
+.log-line .lvl { display: inline-block; min-width: 42px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; margin-right: 6px; }
+.log-line.info .lvl { color: var(--text-sec); background: rgba(255,255,255,0.06); }
+.log-line.warn .lvl { color: var(--warning); background: var(--warning-soft); }
+.log-line.error .lvl { color: var(--error); background: var(--error-soft); }
+.log-line.error { color: var(--error); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+    .header { height: 48px; padding: 0 12px; }
+    .logo-sub { display: none; }
+    .header-right .status-pill:nth-child(3) { display: none; } /* hide stage pill on mobile */
+    .settings-wrap { padding: 12px 12px 0; }
+    .workspace { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+    .col-right { display: none; } /* hide preview col on mobile, open via sheet */
+    .chip-group { grid-template-columns: repeat(3, 1fr); }
+    .toggle-row { grid-template-columns: 1fr; }
+    .btn-row { grid-template-columns: 1fr; }
+    .mock-banner { font-size: 0.66rem; padding: 4px 12px; }
+    .card-head { padding: 12px 14px; }
+    .count-chips .cnt:nth-child(4) { display: none; } /* hide errors chip if 0 on mobile */
+}
+@media (max-width: 480px) {
+    .header-right .status-pill:nth-child(2) { display: none; } /* hide device pill on small */
+    .logo-text { font-size: 0.95rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+    <!-- =================== HEADER =================== -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-mark"><i class="fas fa-wave-square"></i></div>
+            <div>
+                <span class="logo-text">RozittaTranscriber</span>
+                <span class="logo-sub">Видео/аудио → Markdown · faster-whisper</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="status-pill" id="srv-pill" title="Сервис faster-whisper">
+                <span class="status-dot" id="srv-dot"></span>
+                <span id="srv-text">—</span>
+                <span class="port">:8010</span>
+            </div>
+            <div class="status-pill" id="dev-pill" title="Устройство опредится при запуске" style="display:none;">
+                <i class="fas fa-microchip" style="color:var(--orange); font-size:0.72rem;"></i>
+                <span id="dev-text"></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- mock banner -->
+    <div class="mock-banner" id="banner">
+        <i class="fas fa-info-circle"></i>
+        <span id="banner-text">Готов к работе. Укажите папку с медиа и нажмите «Запустить». Модели faster-whisper берутся из локального кэша.</span>
+    </div>
+
+    <!-- =================== SETTINGS BAR =================== -->
+    <div class="settings-wrap">
+        <div class="settings-card">
+
+            <!-- COLLAPSED SUMMARY (показывается после запуска) -->
+            <div class="settings-summary" id="summary">
+                <i class="fas fa-check-circle" style="color:var(--success);"></i>
+                <div class="summary-text">
+                    <span class="acc">large-v3-turbo</span><span class="sep">·</span>
+                    ru<span class="sep">·</span>
+                    VAD<span class="sep">·</span>
+                    таймкоды<span class="sep">·</span>
+                    пропуск готовых<span class="sep">·</span>
+                    <span style="color:var(--pink);">D:/Коллекция/орхидеи/видео</span> → transcripts
+                </div>
+                <button class="btn" onclick="toggleSettings(true)"><i class="fas fa-pen"></i> Изменить</button>
+            </div>
+
+            <!-- EXPANDED FORM -->
+            <div class="settings-expanded" id="form">
+                <div class="settings-title">
+                    <i class="fas fa-sliders-h"></i>
+                    Параметры запуска
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="field" style="margin-bottom:0;">
+                        <label>Папка с медиа <span class="opt">обязательно</span></label>
+                        <div class="inp-wrap has-icon-left">
+                            <i class="fas fa-folder ico-left"></i>
+                            <input class="mono" id="f-input" placeholder="/path/to/media" value="">
+                            <i class="fas fa-folder-open ico-right" id="f-input-btn" title="Выбрать"></i>
+                        </div>
+                    </div>
+                    <div class="field" style="margin-bottom:0;">
+                        <label>Папка для .md</label>
+                        <div class="inp-wrap has-icon-left">
+                            <i class="fas fa-folder ico-left" style="color:var(--text-sec);"></i>
+                            <input class="mono" id="f-output" placeholder="по умолчанию: <вход>/transcripts" value="">
+                            <i class="fas fa-folder-open ico-right" id="f-output-btn" title="Выбрать"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field" style="margin-top:12px;">
+                    <label>Модель faster-whisper</label>
+                    <div class="chip-group" id="model-chips">
+                        <div class="chip" data-model="tiny">tiny</div>
+                        <div class="chip" data-model="base">base</div>
+                        <div class="chip" data-model="small">small</div>
+                        <div class="chip" data-model="medium">medium</div>
+                        <div class="chip" data-model="large-v3">large-v3</div>
+                        <div class="chip on" data-model="large-v3-turbo">large-v3-turbo<span class="rec">★</span></div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="field" style="margin-bottom:0;">
+                        <label>Язык речи</label>
+                        <div class="inp-wrap">
+                            <select id="f-lang"><option value="ru">Русский (ru)</option><option value="en">English (en)</option><option value="auto">Автоопределение</option></select>
+                            <i class="fas fa-chevron-down" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--text-sec); font-size:0.72rem; pointer-events:none;"></i>
+                        </div>
+                    </div>
+                    <div class="field" style="margin-bottom:0;">
+                        <label>beam_size <span class="opt">точность vs скорость</span></label>
+                        <div class="inp-wrap">
+                            <input class="mono" id="f-beam" value="5" type="number" min="1" max="10" style="padding-right:11px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROMPT -->
+                <div class="field" style="margin-top:12px;">
+                    <label>
+                        Подсказка для распознавания
+                        <span class="popover-wrap">
+                            <button class="help-btn" id="helpBtn" title="Что сюда писать?" type="button">?</button>
+                            <div class="popover" id="promptPopover">
+                                <div class="ph-row"><b>Что писать:</b> имена, названия сортов, термины, аббревиатуры — те слова, которые Whisper может написать неправильно.</div>
+                                <div class="ph-row"><b>Зачем:</b> это не инструкция ИИ, а контекст орфографии — модель постарается написать перечисленные слова именно так, а не подбирать созвучно.</div>
+                                <div class="ph-row" style="color:rgba(255,255,255,0.4);">Можно оставить пустым — распознавание пойдёт без подсказки.</div>
+                            </div>
+                        </span>
+                        <span class="opt">опционально</span>
+                    </label>
+                    <div class="inp-wrap">
+                        <textarea class="mono" id="f-prompt" rows="2" placeholder="Напр.: Cattleya, Dendrobium nobile, Ванда, имена авторов сортов"></textarea>
+                    </div>
+                </div>
+
+                <div class="toggle-row" style="margin-top:12px;">
+                    <div class="toggle on" data-toggle="timecodes"><div class="toggle-label">Таймкоды<span class="desc">**[MM:SS]** каждые 5 мин</span></div><div class="switch"></div></div>
+                    <div class="toggle on" data-toggle="vad"><div class="toggle-label">VAD-фильтр<span class="desc">режет тишину</span></div><div class="switch"></div></div>
+                    <div class="toggle on" data-toggle="skip"><div class="toggle-label">Пропускать готовые<span class="desc">idempotent</span></div><div class="switch"></div></div>
+                </div>
+
+                <div class="toggle" id="diar-toggle-block" data-toggle="diarize" style="margin-top:8px;display:grid;grid-template-columns:1fr;gap:4px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,149,0,0.04);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                        <div>
+                            <div class="toggle-label"><i class="fas fa-users" style="color:var(--orange);margin-right:6px;"></i>Разделять по ролям <span class="desc" style="display:inline;font-size:0.64rem;font-weight:400;opacity:0.7;margin-left:4px;">whisperX + pyannote</span></div>
+                            <div class="desc" style="margin-left:22px;font-size:0.64rem;color:var(--text-sec);font-weight:400;margin-top:2px;">помечает реплики спикеров: <code style="background:var(--surface);padding:1px 4px;border-radius:3px;font-size:0.62rem;">**[MM:SS] SPEAKER_00:** текст</code> · имена можно задать после распознавания в превью</div>
+                        </div>
+                        <div class="switch"></div>
+                    </div>
+                </div>
+                <div id="diar-fields" style="display:none;padding:10px 12px 4px;margin-top:-2px;border:1px solid var(--border);border-top:0;border-radius:0 0 10px 10px;background:var(--surface);gap:10px;flex-direction:column;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <div>
+                            <label style="font-size:12px;display:block;margin-bottom:3px;">Min спикеров <span class="opt">опц.</span></label>
+                            <input type="number" id="f-min-spk" min="1" max="20" placeholder="авто" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:13px;">
+                        </div>
+                        <div>
+                            <label style="font-size:12px;display:block;margin-bottom:3px;">Max спикеров <span class="opt">опц.</span></label>
+                            <input type="number" id="f-max-spk" min="1" max="20" placeholder="авто" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:13px;">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;display:block;margin-bottom:3px;">
+                            HuggingFace-токен
+                            <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener" style="color:var(--orange);font-size:11px;text-decoration:none;">получить →</a>
+                            <span class="opt">нужен для pyannote</span>
+                        </label>
+                        <input type="password" id="f-hf-token" placeholder="hf_..." style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;">
+                        <div style="font-size:11px;opacity:0.6;margin-top:4px;line-height:1.4;">
+                            Перед использованием нужно принять условия на
+                            <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noopener" style="color:var(--pink);">speaker-diarization-3.1</a> и
+                            <a href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" rel="noopener" style="color:var(--pink);">segmentation-3.0</a>.
+                            Токен хранится только в памяти процесса и не пишется на диск.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="safety-note">
+                    <i class="fas fa-shield-alt"></i>
+                    <b>Защита данных:</b> запись в <code>.part</code> → атомарный rename · сбой одного файла не роняет батч · «Стоп» / Ctrl+C сохраняет готовое
+                </div>
+
+                <div class="btn-row">
+                    <button class="btn btn-primary btn-lg" id="btn-start"><i class="fas fa-play"></i> Запустить транскрибацию</button>
+                    <button class="btn btn-ghost-danger btn-lg" id="btn-stop"><i class="fas fa-stop"></i> Стоп (с сохранением)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================== WORKSPACE =================== -->
+    <div class="workspace">
+
+        <!-- LEFT: QUEUE -->
+        <div class="col col-left">
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-title"><i class="fas fa-list-ol"></i> Очередь файлов</div>
+                    <div class="count-chips">
+                        <span class="cnt green"><i class="fas fa-check"></i> 4</span>
+                        <span class="cnt orange"><i class="fas fa-spinner fa-spin"></i> 1</span>
+                        <span class="cnt gray"><i class="fas fa-clock"></i> 7</span>
+                        <span class="cnt red"><i class="fas fa-exclamation"></i> 0</span>
+                    </div>
+                </div>
+                <div class="card-body" id="queue-body">
+                    <div class="empty-state" id="empty-state">
+                        <i class="fas fa-folder-open"></i>
+                        <div class="empty-title">Очередь пуста</div>
+                        <div class="empty-desc">Укажите папку с медиа выше и нажмите «Запустить».<br>Файлы появятся здесь с прогрессом в реальном времени.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: PREVIEW (desktop) -->
+        <div class="col col-right">
+            <div class="card">
+                <div class="right-tabs">
+                    <button class="right-tab active" data-tab="preview"><i class="fas fa-file-alt"></i> Превью</button>
+                    <button class="right-tab" data-tab="log"><i class="fas fa-terminal"></i> Лог</button>
+                    <div class="right-actions">
+                        <button class="file-action" id="btn-copy" title="Копировать"><i class="fas fa-copy"></i></button>
+                        <button class="file-action" id="btn-download" title="Скачать .md"><i class="fas fa-download"></i></button>
+                    </div>
+                </div>
+                <!-- preview tab -->
+                <div id="tab-preview" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+                    <div class="preview-file-bar">
+                        <i class="fas fa-file-code" style="color:var(--orange); font-size:0.74rem;"></i>
+                        <span class="fname" id="preview-name">— выберите файл —</span>
+                        <span class="badge-part" id="preview-badge" style="display:none;">.part</span>
+                    </div>
+                    <div class="speakers-panel" id="speakers-panel" style="display:none;">
+                        <div class="speakers-panel-head">
+                            <i class="fas fa-user-tag" style="color:var(--orange);font-size:0.78rem;"></i>
+                            <span class="speakers-panel-title">Спикеры в этом файле</span>
+                        </div>
+                        <div class="speakers-tip">
+                            <i class="fas fa-hand-pointer"></i>
+                            <span>Кликните по <b>SPEAKER_00</b> прямо в тексте превью ниже — появится поле для ввода имени. Или задайте имена в полях здесь, затем нажмите «Применить имена».</span>
+                        </div>
+                        <div class="speakers-list" id="speakers-list"></div>
+                        <div class="speakers-actions">
+                            <button class="btn-sm primary" id="btn-apply-speakers"><i class="fas fa-check"></i> Применить имена</button>
+                            <button class="btn-sm" id="btn-reset-speakers"><i class="fas fa-undo"></i> Сбросить</button>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:0;">
+                        <div class="preview-md" id="preview-md"><div style="text-align:center;padding:48px 16px;"><img src="/static/rozitta.png" alt="Rozitta" style="width:104px;height:104px;border-radius:20px;opacity:0.9;margin-bottom:16px;"><div class="live" style="font-size:0.74rem;line-height:1.6;">Выберите файл слева — здесь появится распознанный текст.<br>Спикеры будут обозначены разными цветами.</div></div></div>
+                    </div>
+                    <div class="card-foot" id="preview-foot">
+                        <span><i class="fas fa-chart-bar" style="color:var(--orange);"></i> <span id="p-words">0</span> сл.</span>
+                        <span class="dot">·</span>
+                        <span><i class="fas fa-file"></i> <span id="p-size">0</span> КБ</span>
+                        <span class="dot" style="margin-left:auto;">·</span>
+                        <span id="p-state" style="color:var(--text-sec);">—</span>
+                    </div>
+                </div>
+                <!-- log tab -->
+                <div id="tab-log" style="display:none; flex:1; min-height:0; overflow-y:auto;" class="card-body">
+                    <div class="log-panel" id="log-panel"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================== FOOTER =================== -->
+    <footer class="app-footer">
+        <span><i class="fas fa-cog" style="color:var(--pink);"></i> <span class="acc">faster-whisper</span> · <span id="ft-model">—</span></span>
+        <span class="sep">·</span>
+        <span id="ft-device">—</span>
+        <span class="sep">·</span>
+        <span>beam=<span id="ft-beam">5</span> · VAD · cond_prev=false</span>
+        <span class="right" id="ft-stats">ожидание</span>
+    </footer>
+</div>
+
+<!-- =================== MOBILE PREVIEW SHEET =================== -->
+<div class="sheet-overlay" id="overlay" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+        <i class="fas fa-file-code" style="color:var(--orange); font-size:0.82rem;"></i>
+        <span class="title" id="sheetTitle">—</span>
+        <span class="badge-part" id="sheet-badge" style="display:none;">.part</span>
+        <button class="sheet-close" onclick="closeSheet()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sheet-body">
+        <div class="preview-md" id="sheet-md"><span class="live">—</span></div>
+    </div>
+    <div class="card-foot">
+        <span><i class="fas fa-chart-bar" style="color:var(--orange);"></i> <span id="s-words">0</span> сл.</span>
+        <span class="dot">·</span>
+        <span><i class="fas fa-file"></i> <span id="s-size">0</span> КБ</span>
+        <span class="dot" style="margin-left:auto;">·</span>
+        <span id="s-state" style="color:var(--text-sec);">—</span>
+    </div>
+</div>
+
+<script>
+// ===================== HELPERS =====================
+const $ = (id) => document.getElementById(id);
+const fmt_ts = (s) => {
+    s = Math.max(0, Math.floor(s));
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return h ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${m}:${String(sec).padStart(2,'0')}`;
+};
+const fmt_size = (b) => {
+    if (!b) return '0';
+    if (b < 1024) return b + ' Б';
+    if (b < 1024*1024) return (b/1024).toFixed(0) + ' КБ';
+    if (b < 1024*1024*1024) return (b/1024/1024).toFixed(0) + ' МБ';
+    return (b/1024/1024/1024).toFixed(1) + ' ГБ';
+};
+const esc = (s) => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// Gateway support: если открыто через Caddy с ?XTransformPort=PORT, добавляем ко всем запросам
+const XTP = new URLSearchParams(location.search).get('XTransformPort');
+function apiUrl(path) {
+    if (!XTP) return path;
+    const sep = path.includes('?') ? '&' : '?';
+    return path + sep + 'XTransformPort=' + XTP;
+}
+
+// ===================== STATE =====================
+let currentStem = null;      // выбранный для превью файл (stem)
+let tasksMap = {};           // name -> task
+let running = false;
+
+// ===================== SETTINGS =====================
+function toggleSettings(expand) {
+    $('form').classList.toggle('hide', !expand);
+    $('summary').classList.toggle('show', !expand);
+}
+
+function getSelectedModel() {
+    const c = document.querySelector('#model-chips .chip.on');
+    return c?.dataset.model || 'large-v3-turbo';
+}
+function getToggle(name) {
+    const t = document.querySelector(`.toggle[data-toggle="${name}"]`);
+    return t?.classList.contains('on') || false;
+}
+function collectOptions() {
+    const beam = parseInt($('f-beam').value, 10) || 5;
+    $('ft-beam').textContent = beam;
+    const diarize = getToggle('diarize');
+    const minSpk = diarize ? (parseInt($('f-min-spk').value, 10) || null) : null;
+    const maxSpk = diarize ? (parseInt($('f-max-spk').value, 10) || null) : null;
+    const hfToken = diarize ? ($('f-hf-token').value.trim() || null) : null;
+    return {
+        input_dir: $('f-input').value.trim(),
+        output_dir: $('f-output').value.trim() || null,
+        model: getSelectedModel(),
+        language: $('f-lang').value,
+        prompt: $('f-prompt').value.trim() || null,
+        timecodes: getToggle('timecodes'),
+        vad_filter: getToggle('vad'),
+        skip_existing: getToggle('skip'),
+        beam_size: beam,
+        diarize: diarize,
+        hf_token: hfToken,
+        min_speakers: minSpk,
+        max_speakers: maxSpk,
+    };
+}
+
+// ===================== API =====================
+async function apiStart() {
+    const opts = collectOptions();
+    if (!opts.input_dir) {
+        setBanner('Укажите папку с медиа.', 'warn');
+        return;
+    }
+    $('btn-start').disabled = true;
+    try {
+        const r = await fetch(apiUrl('/api/start'), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(opts),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+            setBanner(j.message || 'Не удалось запустить', 'warn');
+        } else {
+            toggleSettings(false);
+            setBanner('Транскрибация запущена: ' + j.message, 'info');
+        }
+    } catch (e) {
+        setBanner('Ошибка сети: ' + e.message, 'warn');
+    } finally {
+        $('btn-start').disabled = false;
+    }
+}
+async function apiStop() {
+    await fetch(apiUrl('/api/stop'), {method: 'POST'});
+    setBanner('Останавливаю… готовые файлы сохраняются', 'info');
+}
+async function apiPreview(stem) {
+    try {
+        const r = await fetch(apiUrl('/api/preview?stem=' + encodeURIComponent(stem)));
+        if (!r.ok) return null;
+        return await r.json();
+    } catch { return null; }
+}
+
+// ===================== RENDER =====================
+function setBanner(text, level) {
+    $('banner-text').innerHTML = level === 'warn'
+        ? `<b style="color:var(--warning);">${esc(text)}</b>`
+        : esc(text);
+}
+
+function renderStatus(s) {
+    // header pills
+    const dot = $('srv-dot'), txt = $('srv-text');
+    if (s.state === 'running') { dot.className = 'status-dot busy'; txt.textContent = 'В работе'; }
+    else if (s.state === 'stopping') { dot.className = 'status-dot busy'; txt.textContent = 'Остановка'; }
+    else if (s.state === 'finished') { dot.className = 'status-dot'; txt.textContent = 'Завершено'; }
+    else { dot.className = 'status-dot'; txt.textContent = 'Готов'; }
+
+    if (s.device) {
+        $('dev-pill').style.display = 'flex';
+        $('dev-text').textContent = `${s.device} · ${s.compute_type}`;
+    }
+    // footer
+    $('ft-model').textContent = s.model || '—';
+    $('ft-device').textContent = s.device ? `${s.device} ${s.compute_type}` : '—';
+    $('ft-stats').textContent = s.total
+        ? `${s.total} файл. · ${s.done} готово · ${s.running} в работе · ${s.overall_progress}%`
+        : 'ожидание';
+
+    // count chips
+    const chips = document.querySelector('.count-chips');
+    chips.innerHTML = `
+        <span class="cnt green"><i class="fas fa-check"></i> ${s.done}</span>
+        <span class="cnt orange"><i class="fas ${s.running?'fa-spinner fa-spin':'fa-play'}"></i> ${s.running}</span>
+        <span class="cnt gray"><i class="fas fa-clock"></i> ${s.queued}</span>
+        <span class="cnt red"><i class="fas fa-exclamation"></i> ${s.errors}</span>
+        ${s.skipped ? `<span class="cnt gray"><i class="fas fa-forward"></i> ${s.skipped}</span>` : ''}
+    `;
+
+    running = s.state === 'running' || s.state === 'stopping';
+    $('btn-start').disabled = running;
+    $('btn-stop').disabled = !running;
+}
+
+function renderQueue(tasks) {
+    const body = $('queue-body');
+    tasksMap = {};
+    tasks.forEach(t => tasksMap[t.name] = t);
+
+    if (!tasks.length) {
+        body.innerHTML = `<div class="empty-state"><i class="fas fa-folder-open"></i>
+            <div class="empty-title">Очередь пуста</div>
+            <div class="empty-desc">Укажите папку с медиа выше и нажмите «Запустить».</div></div>`;
+        return;
+    }
+    // позиция в очереди
+    let qpos = 0;
+    body.innerHTML = tasks.map(t => {
+        tasksMap[t.name] = t;
+        let posLabel = '';
+        if (t.status === 'queued') { qpos++; posLabel = `в очереди · позиция ${qpos}`; }
+        const ico = {
+            queued: '<i class="fas fa-clock"></i>',
+            running: '<i class="fas fa-spinner fa-spin"></i>',
+            done: '<i class="fas fa-check"></i>',
+            skipped: '<i class="fas fa-forward"></i>',
+            error: '<i class="fas fa-exclamation"></i>',
+            stopped: '<i class="fas fa-stop"></i>',
+        }[t.status] || '<i class="fas fa-clock"></i>';
+
+        let meta = '';
+        if (t.status === 'running') {
+            meta = `<span class="badge">${fmt_size(t.size)}</span>
+                ${t.duration?`<span class="badge orange">${fmt_ts(t.duration)}</span>`:''}
+                <span>${fmt_ts(t.elapsed)} затрачено${t.eta>0?` · ~${fmt_ts(t.eta)} осталось`:''}</span>
+                <span style="color:var(--warning); font-weight:600; margin-left:auto;">${Math.round(t.progress)}%</span>`;
+        } else if (t.status === 'done') {
+            meta = `<span class="badge">${fmt_size(t.size)}</span>
+                <span style="color:var(--success);">✓ готово${t.duration?` · ${fmt_ts(t.duration)}`:''}</span>
+                <span>→ ${t.md_name||'.md'}</span>`;
+        } else if (t.status === 'skipped') {
+            meta = `<span class="badge">пропущен</span><span>.md уже существует</span>`;
+        } else if (t.status === 'error') {
+            meta = `<span class="badge red">ошибка</span><span class="code">${esc(t.error||'').slice(0,60)}</span>`;
+        } else if (t.status === 'stopped') {
+            meta = `<span class="badge">остановлен</span>`;
+        } else {
+            meta = `<span class="badge">${fmt_size(t.size)}</span><span>${posLabel}</span>`;
+        }
+
+        const progress = (t.status === 'running')
+            ? `<div class="progress-track"><div class="progress-fill" style="width:${t.progress}%"></div></div>`
+            : (t.status === 'done' ? `<div class="progress-track"><div class="progress-fill" style="width:100%; background:var(--success);"></div></div>` : '');
+
+        const cls = t.status === 'running' ? 'active' : t.status;
+        const sel = (t.stem === currentStem) ? ' selected' : '';
+        const action = t.status === 'done'
+            ? `<button class="file-action link" data-action="open" data-stem="${esc(t.stem)}"><i class="fas fa-external-link-alt"></i> Открыть</button>`
+            : '';
+        return `<div class="file-row ${cls}${sel}" data-stem="${esc(t.stem)}" data-name="${esc(t.name)}">
+            <div class="file-ico ${cls==='running'?'active':cls}">${ico}</div>
+            <div class="file-body">
+                <div class="file-name">${esc(t.name)}</div>
+                ${progress}
+                <div class="file-meta">${meta}</div>
+            </div>
+            ${action}
+        </div>`;
+    }).join('');
+
+    // bind clicks
+    body.querySelectorAll('.file-row').forEach(row => {
+        row.addEventListener('click', () => selectFile(row.dataset.stem, row.dataset.name));
+    });
+    body.querySelectorAll('[data-action="open"]').forEach(b => {
+        b.addEventListener('click', (e) => { e.stopPropagation(); window.open(apiUrl('/api/download?stem='+encodeURIComponent(b.dataset.stem)), '_blank'); });
+    });
+}
+
+async function selectFile(stem, name) {
+    currentStem = stem;
+    document.querySelectorAll('.file-row').forEach(r => r.classList.toggle('selected', r.dataset.stem === stem));
+    // load preview
+    const data = await apiPreview(stem);
+    renderPreview(stem, name, data);
+    // mobile sheet
+    if (window.innerWidth <= 900) {
+        $('sheetTitle').textContent = stem + '.md';
+        $('sheet').classList.add('show');
+        $('overlay').classList.add('show');
+    }
+}
+
+function renderMarkdown(text) {
+    // подсветка: # заголовок, **[MM:SS]** таймкод, SPEAKER_N — кликабельный, в цвете
+    return esc(text)
+        .replace(/^# (.+)$/m, '<span class="h1">#$1</span>')
+        .replace(/\*\*\[([^\]]+)\]\*\*/g, '<span class="tc">**[$1]**</span>')
+        .replace(/\bSPEAKER_(\d+)\b/g, (m, num) => {
+            const idx = parseInt(num, 10) % 8;
+            const full = 'SPEAKER_' + num;
+            return '<span class="spk spk-' + idx + '" data-spk="' + full + '">' + full + '</span>';
+        });
+}
+
+// ---- переименование спикеров прямо в превью ----
+const spkRenames = {}; // {SPEAKER_00: "Иван"} — накопленные переименования для текущего стема
+let currentPreviewStem = null;
+
+function applySpkRenamesToDom() {
+    document.querySelectorAll('#preview-md .spk, #sheet-md .spk').forEach(el => {
+        const orig = el.dataset.spk;
+        if (spkRenames[orig]) {
+            el.textContent = spkRenames[orig];
+            el.classList.add('spk-edited');
+        } else {
+            el.textContent = orig;
+            el.classList.remove('spk-edited');
+        }
+    });
+    // синхронизировать инпуты панели (не трогая тот, что в фокусе)
+    document.querySelectorAll('#speakers-list input[data-spk]').forEach(inp => {
+        if (document.activeElement === inp) return;
+        const sp = inp.dataset.spk;
+        inp.value = spkRenames[sp] || '';
+    });
+}
+
+// ---- панель спикеров над превью ----
+let currentPreviewText = '';
+function extractSpeakers(text) {
+    if (!text) return [];
+    const set = new Set(text.match(/\bSPEAKER_\d+\b/g) || []);
+    return [...set].sort((a, b) =>
+        parseInt(a.replace('SPEAKER_', '')) - parseInt(b.replace('SPEAKER_', '')));
+}
+function renderSpeakersPanel(text) {
+    currentPreviewText = text || '';
+    const sps = extractSpeakers(text);
+    const panel = $('speakers-panel');
+    if (!sps.length) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    const list = $('speakers-list');
+    list.innerHTML = sps.map(sp => {
+        const idx = parseInt(sp.replace('SPEAKER_', ''), 10) % 8;
+        return `
+        <div class="speaker-row spk-${idx}">
+            <span class="speaker-tag spk-${idx}">${sp}</span>
+            <input type="text" data-spk="${sp}" value="${esc(spkRenames[sp] || '')}" placeholder="имя участника…">
+        </div>`;
+    }).join('');
+    list.querySelectorAll('input[data-spk]').forEach(inp => {
+        inp.addEventListener('input', () => {
+            const sp = inp.dataset.spk;
+            const v = inp.value.trim();
+            if (v && v !== sp) spkRenames[sp] = v;
+            else delete spkRenames[sp];
+            applySpkRenamesToDom();
+        });
+        inp.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); $('btn-apply-speakers').click(); }
+        });
+    });
+}
+async function applySpeakersToServer() {
+    if (!currentPreviewStem) return;
+    const renames = {...spkRenames};
+    const has = Object.keys(renames).length > 0;
+    try {
+        const r = await fetch(apiUrl('/api/rename-speakers'), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({stem: currentPreviewStem, renames}),
+        });
+        const d = await r.json();
+        if (d.ok) {
+            addLog(has ? 'Имена спикеров применены к .md' : 'Имена спикеров сброшены', 'info');
+            // рендерим оригинал (currentPreviewText с SPEAKER_NN → цветные .spk),
+            // затем применяем renames через DOM — цвета спикеров сохраняются.
+            // панель спикеров НЕ перерисовываем — оставляем инпуты с именами,
+            // чтобы можно было поправить имя и применить снова.
+            if (currentPreviewText) {
+                const html = renderMarkdown(currentPreviewText);
+                $('preview-md').innerHTML = html;
+                $('sheet-md').innerHTML = html;
+                applySpkRenamesToDom();
+            }
+        } else {
+            addLog('Не удалось применить: ' + (d.error || 'ошибка'), 'warn');
+        }
+    } catch (err) {
+        addLog('Ошибка сети при переименовании: ' + err, 'warn');
+    }
+}
+
+function attachSpkHandlers() {
+    const onSpkClick = (e) => {
+        const spk = e.target.closest('.spk');
+        if (!spk || !spk.dataset.spk) return;
+        if (spk.querySelector('input')) return;
+        const orig = spk.dataset.spk;
+        const current = spkRenames[orig] || orig;
+        const input = document.createElement('input');
+        input.className = 'spk-input';
+        input.value = current;
+        input.placeholder = orig;
+        spk.textContent = '';
+        spk.appendChild(input);
+        input.focus();
+        input.select();
+        const commit = async () => {
+            const val = input.value.trim();
+            if (val && val !== orig) {
+                spkRenames[orig] = val;
+            } else {
+                delete spkRenames[orig];
+            }
+            applySpkRenamesToDom();
+            if (currentPreviewStem) {
+                try {
+                    const r = await fetch(apiUrl('/api/rename-speakers'), {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({stem: currentPreviewStem, renames: {...spkRenames}}),
+                    });
+                    const d = await r.json();
+                    if (d.ok) {
+                        addLog(`Спикер переименован: ${orig} → ${spkRenames[orig] || '(сброшен)'}`, 'info');
+                    }
+                } catch (err) {
+                    addLog(`Не сохранить переименование: ${err}`, 'warn');
+                }
+            }
+        };
+        input.addEventListener('blur', commit, {once: true});
+        input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+            else if (ev.key === 'Escape') { delete spkRenames[orig]; input.value = orig; input.blur(); }
+        });
+    };
+    document.getElementById('preview-md').addEventListener('click', onSpkClick);
+    const sheetMd = document.getElementById('sheet-md');
+    if (sheetMd) sheetMd.addEventListener('click', onSpkClick);
+}
+
+function renderPreview(stem, name, data) {
+    const t = tasksMap[Object.keys(tasksMap).find(k => tasksMap[k].stem === stem)];
+    const isPart = data?.is_part;
+    const isRunning = t?.status === 'running';
+    // сброс переименований при смене файла
+    if (currentPreviewStem !== stem) {
+        currentPreviewStem = stem;
+        Object.keys(spkRenames).forEach(k => delete spkRenames[k]);
+    }
+    $('preview-name').textContent = stem + '.md';
+    $('preview-badge').style.display = isPart ? 'inline-block' : 'none';
+    if (data?.text) {
+        let html = renderMarkdown(data.text);
+        if (isRunning) html += '<span class="caret"></span> <span class="live">— распознавание продолжается —</span>';
+        $('preview-md').innerHTML = html;
+        applySpkRenamesToDom();
+        renderSpeakersPanel(data.text);
+    } else {
+        $('preview-md').innerHTML = `<span class="live">${t?.status==='queued'?'Файл ещё не обрабатывался.':(t?.status==='error'?'Файл не распознан (ошибка).':'Текст появится после начала распознавания.')}</span>`;
+        renderSpeakersPanel('');
+    }
+    $('p-words').textContent = t?.word_count || 0;
+    $('p-size').textContent = data?.size ? Math.round(data.size/1024) : 0;
+    const stateMap = {running:'в работе', done:'готово', queued:'в очереди', error:'ошибка', skipped:'пропущен', stopped:'остановлен'};
+    $('p-state').textContent = stateMap[t?.status] || '—';
+    $('p-state').style.color = t?.status==='done'?'var(--success)':t?.status==='error'?'var(--error)':t?.status==='running'?'var(--warning)':'var(--text-sec)';
+
+    // sheet (mobile)
+    $('sheet-md').innerHTML = $('preview-md').innerHTML;
+    $('s-words').textContent = t?.word_count || 0;
+    $('s-size').textContent = data?.size ? Math.round(data.size/1024) : 0;
+    $('s-state').textContent = stateMap[t?.status] || '—';
+    $('sheet-badge').style.display = isPart ? 'inline-block' : 'none';
+}
+
+function addLog(msg, level) {
+    const p = $('log-panel');
+    const line = document.createElement('div');
+    line.className = 'log-line ' + (level || 'info');
+    line.innerHTML = `<span class="lvl">${level||'info'}</span>${esc(msg)}`;
+    p.appendChild(line);
+    // auto-scroll
+    p.parentElement.scrollTop = p.parentElement.scrollHeight;
+    // limit
+    while (p.children.length > 500) p.removeChild(p.firstChild);
+}
+
+// ===================== WEBSOCKET =====================
+function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${proto}://${location.host}/ws${XTP?'?XTransformPort='+XTP:''}`;
+    const ws = new WebSocket(wsUrl);
+    ws.onmessage = (ev) => {
+        const m = JSON.parse(ev.data);
+        if (m.type === 'status') {
+            renderStatus(m.data);
+            renderQueue(m.data.tasks || []);
+            if (currentStem) { /* refresh preview live */ }
+        } else if (m.type === 'progress') {
+            // обновить конкретный таск в tasksMap
+            const d = m.data;
+            // найти по имени не знаем, обновим по stem через status-опрос
+            refreshStatus();
+            if (d.stem === currentStem && d.status === 'running') {
+                // перезагрузим превью не чаще раза в 2с
+                throttlePreview(d.stem);
+            }
+        } else if (m.type === 'log') {
+            addLog(m.data.msg, m.data.level);
+        } else if (m.type === 'state') {
+            if (m.data === 'finished') {
+                refreshStatus();
+                setBanner('Транскрибация завершена. Готовые .md в папке вывода.', 'info');
+            }
+        }
+    };
+    ws.onclose = () => setTimeout(connectWS, 1500);
+    ws.onerror = () => ws.close();
+}
+
+let lastPreviewTs = 0;
+function throttlePreview(stem) {
+    const now = Date.now();
+    if (now - lastPreviewTs < 2000) return;
+    lastPreviewTs = now;
+    apiPreview(stem).then(data => { if (data) renderPreview(stem, stem, data); });
+}
+
+async function refreshStatus() {
+    try {
+        const r = await fetch(apiUrl('/api/status'));
+        const s = await r.json();
+        renderStatus(s);
+        renderQueue(s.tasks || []);
+    } catch {}
+}
+
+// ===================== TABS =====================
+document.querySelectorAll('.right-tab').forEach(t => {
+    t.addEventListener('click', () => {
+        document.querySelectorAll('.right-tab').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        const tab = t.dataset.tab;
+        $('tab-preview').style.display = tab === 'preview' ? 'flex' : 'none';
+        $('tab-log').style.display = tab === 'log' ? 'block' : 'none';
+        if (tab === 'log') $('tab-log').scrollTop = $('tab-log').scrollHeight;
+    });
+});
+
+// ===================== EVENTS =====================
+$('btn-start').addEventListener('click', apiStart);
+$('btn-stop').addEventListener('click', apiStop);
+$('btn-copy').addEventListener('click', () => {
+    const text = $('preview-md').innerText;
+    navigator.clipboard?.writeText(text);
+    setBanner('Текст скопирован', 'info');
+});
+$('btn-download').addEventListener('click', () => {
+    if (currentStem) window.open(apiUrl('/api/download?stem='+encodeURIComponent(currentStem)), '_blank');
+});
+
+// chips
+document.querySelectorAll('#model-chips .chip').forEach(c => c.addEventListener('click', () => {
+    document.querySelectorAll('#model-chips .chip').forEach(x => x.classList.remove('on'));
+    c.classList.add('on');
+    $('ft-model').textContent = c.dataset.model;
+}));
+// toggles
+document.querySelectorAll('.toggle').forEach(t => t.addEventListener('click', () => t.classList.toggle('on')));
+// speaker rename handlers in preview
+attachSpkHandlers();
+// speakers panel: apply / reset buttons
+$('btn-apply-speakers').addEventListener('click', applySpeakersToServer);
+$('btn-reset-speakers').addEventListener('click', () => {
+    Object.keys(spkRenames).forEach(k => delete spkRenames[k]);
+    renderSpeakersPanel(currentPreviewText);
+    applySpkRenamesToDom();
+    if (currentPreviewStem) applySpeakersToServer();
+});
+// diarization: show/hide extra fields when the diar toggle flips
+(() => {
+    const dt = document.querySelector('.toggle[data-toggle="diarize"]');
+    const fields = $('diar-fields');
+    if (dt && fields) {
+        const sync = () => { fields.style.display = dt.classList.contains('on') ? 'flex' : 'none'; };
+        dt.addEventListener('click', () => setTimeout(sync, 0));
+        sync();
+    }
+})();
+// help button: toggle prompt popover
+(() => {
+    const btn = $('helpBtn');
+    const pop = $('promptPopover');
+    if (!btn || !pop) return;
+    const toggle = (show) => { pop.classList.toggle('show', show); btn.classList.toggle('active', show); };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(!pop.classList.contains('show')); });
+    document.addEventListener('click', (e) => { if (!pop.contains(e.target) && e.target !== btn) toggle(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
+})();
+
+function closeSheet() {
+    $('sheet').classList.remove('show');
+    $('overlay').classList.remove('show');
+}
+
+// ===================== INIT =====================
+refreshStatus();
+connectWS();
+</script>
+
+</body>
+</html>

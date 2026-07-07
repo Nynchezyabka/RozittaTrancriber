@@ -1,0 +1,8 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+faster-whisper>=1.0.0
+# Опционально: диаризация по спикерам (см. README, раздел «Разделение по ролям»)
+# Требует HuggingFace-токен и принятия соглашений на:
+#   https://huggingface.co/pyannote/speaker-diarization-3.1
+#   https://huggingface.co/pyannote/segmentation-3.0
+whisperx>=3.1.1
