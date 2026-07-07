@@ -1,17 +1,21 @@
-<p align="center">
-  <img src="docs/rozitta.png" width="150" alt="Rozitta">
-</p>
+<table>
+  <tr>
+    <td width="200" align="center">
+      <img src="docs/rozitta.png" width="150" alt="Rozitta">
+    </td>
+    <td>
+      <h1>🐸 Rozitta Transcriber</h1>
+      <p><strong>Видео/аудио → Markdown</strong> для подготовки RAG-корпуса.</p>
+      <p>Дополнение к <a href="https://github.com/Nynchezyabka/RozittaParser">Rozitta Parser</a>.</p>
+      <p>
+        <a href="#"><img src="https://img.shields.io/badge/Python-3.10–3.12-3776AB?logo=python&logoColor=white" alt="Python"></a>
+        <a href="#"><img src="https://img.shields.io/badge/faster--whisper-local-orange" alt="faster-whisper"></a>
+        <a href="#"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+      </p>
+    </td>
+  </tr>
+</table>
 
-# 🐸 Rozitta Transcriber
-
-[![Python](https://img.shields.io/badge/Python-3.10%E2%80%933.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![faster-whisper](https://img.shields.io/badge/faster--whisper-local-orange)](https://github.com/SYSTRAN/faster-whisper)
-[![whisperX](https://img.shields.io/badge/whisperX-optional-FF6BC9)](https://github.com/m-bain/whisperX)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/status-active-success)](https://github.com/Nynchezyabka/RozittaTranscriber)
-
-> Видео/аудио → Markdown для подготовки RAG-корпуса.  
-> Дополнение к **Rozitta Parser** — [репозиторий](https://github.com/Nynchezyabka/RozittaParser).
 
 Превращает записи (лекции, интервью, голосовые, видео) в `.md`, которые потом
 легко скармливаются в RAG (AnythingLLM, векторные
