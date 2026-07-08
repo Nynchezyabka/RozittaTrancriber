@@ -42,7 +42,7 @@ body {
     min-height: 100vh;
 }
 
-.app { display: flex; flex-direction: column; min-height: 100vh; }
+.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 /* ===== HEADER ===== */
 .header {
@@ -217,12 +217,71 @@ body {
 
 .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 
-/* ===== WORKSPACE (2 cols) ===== */
+/* ===== WORKSPACE (3 cols, like RozittaParser) ===== >>> LAYOUT_V3 >>> */
 .workspace {
-    flex: 1; display: grid; grid-template-columns: 1fr 400px; gap: 14px;
-    padding: 14px 18px; min-height: 0;
+    flex: 1; display: grid; grid-template-columns: 1.5fr 1fr 308px; /* >>> LAYOUT_V4 >>> wider left col to mid */ gap: 14px;
+    padding: 14px 18px; min-height: 0; overflow: hidden;
 }
 .col { display: flex; flex-direction: column; min-width: 0; }
+
+/* LEFT: settings column (scrollable, narrowed) */
+.col-left { max-height: calc(100vh - 52px - 28px - 28px); overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: rgba(255,149,0,0.4) transparent; }
+.col-left::-webkit-scrollbar { width: 4px; }
+.col-left::-webkit-scrollbar-thumb { background: rgba(255,149,0,0.4); border-radius: 2px; }
+.col-left .card { flex: 0 0 auto; }
+.col-left .settings-expanded { padding: 16px; }
+
+/* MIDDLE: queue (top) + preview (bottom, stretched) */
+.col-mid { gap: 14px; overflow: hidden; min-height: 0;}
+.col-mid > .card:first-child { flex: 1; min-height: 0; }
+.col-mid > .card:last-child { flex: 1; min-height: 0; }
+
+/* RIGHT: frog + explanations + logs (like parser right panel) */
+.col-right-panel {
+    background: rgba(16,16,16,0.45); border: 1px solid var(--border);
+    border-radius: var(--r); box-shadow: var(--shadow);
+    overflow: hidden; display: flex; flex-direction: column; min-height: 0;
+}
+.char-wrap {
+    padding: 18px 14px 14px; background: rgba(0,0,0,0.12);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 7px;
+}
+.frog-avatar {
+    width: 80px; height: 80px; border-radius: 50%;
+    overflow: hidden; flex-shrink: 0;
+    border: 2px solid var(--pink);
+    box-shadow: 0 0 14px rgba(255,107,201,0.20);
+    cursor: pointer; transition: var(--t);
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, rgba(255,107,201,0.2), rgba(255,149,0,0.1));
+}
+.frog-avatar:hover { transform: scale(1.08); box-shadow: 0 0 24px rgba(255,107,201,0.35); }
+.frog-avatar:active { transform: scale(0.96); }
+.frog-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.frog-avatar.croaking { animation: croak-bounce 0.4s ease; }
+@keyframes croak-bounce { 0%,100%{transform:scale(1)} 30%{transform:scale(1.12)} 60%{transform:scale(0.95)} }
+.char-name { font-size: 0.86rem; font-weight: 600; color: var(--pink); }
+.char-hint { font-size: 0.64rem; color: var(--text-sec); text-align: center; line-height: 1.4; }
+.right-explanations { padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.right-explanations .safety-note { margin-top: 0; }
+.right-logs { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.right-logs-head {
+    padding: 12px 14px 8px; font-size: 0.84rem; font-weight: 600;
+    color: var(--text); display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.right-logs-head i {
+    background: var(--orange-soft); color: var(--orange);
+    padding: 5px 6px; border-radius: 6px; font-size: 0.78rem;
+}
+.right-logs-body {
+    flex: 1; overflow-y: auto; padding: 0 14px 14px;
+    font-family: "JetBrains Mono", monospace; font-size: 0.72rem;
+    line-height: 1.6; color: var(--text-sec);
+    scrollbar-width: thin; scrollbar-color: rgba(255,149,0,0.5) transparent;
+}
+.right-logs-body::-webkit-scrollbar { width: 5px; }
+.right-logs-body::-webkit-scrollbar-thumb { background: rgba(255,149,0,0.5); border-radius: 3px; }
 
 .card {
     background: var(--surface); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
@@ -389,21 +448,63 @@ body {
 @media (max-width: 900px) {
     .header { height: 48px; padding: 0 12px; }
     .logo-sub { display: none; }
-    .header-right .status-pill:nth-child(3) { display: none; } /* hide stage pill on mobile */
-    .settings-wrap { padding: 12px 12px 0; }
+    .header-right .status-pill:nth-child(3) { display: none; }
     .workspace { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
-    .col-right { display: none; } /* hide preview col on mobile, open via sheet */
+    .col-left { max-height: none; order: 1; }
+    .col-mid { order: 2; overflow: hidden; min-height: 0;}
+    .col-mid > .card:last-child { display: none; } /* hide preview card on mobile, open via sheet */
+    .col-mid > .card:first-child { flex: 1; min-height: 0; }
+    .col-right-panel { order: 3; max-height: 260px; }
     .chip-group { grid-template-columns: repeat(3, 1fr); }
     .toggle-row { grid-template-columns: 1fr; }
     .btn-row { grid-template-columns: 1fr; }
     .mock-banner { font-size: 0.66rem; padding: 4px 12px; }
     .card-head { padding: 12px 14px; }
-    .count-chips .cnt:nth-child(4) { display: none; } /* hide errors chip if 0 on mobile */
+    .count-chips .cnt:nth-child(4) { display: none; }
 }
 @media (max-width: 480px) {
     .header-right .status-pill:nth-child(2) { display: none; } /* hide device pill on small */
     .logo-text { font-size: 0.95rem; }
 }
+/* >>> FOLDER_PICKER_CSS >>> */
+/* ===== FOLDER PICKER ===== */
+.folder-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 300; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.folder-overlay.show { opacity: 1; pointer-events: auto; }
+.folder-modal {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -48%);
+    z-index: 301; width: min(560px, 92vw); max-height: 80vh;
+    display: flex; flex-direction: column;
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--r);
+    box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all 0.2s ease;
+}
+.folder-modal.show { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
+.folder-head { padding: 14px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.folder-head .fp-title { font-size: 0.9rem; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.folder-head .fp-up { width: 32px; height: 32px; border-radius: var(--rsm); display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--text-sec); cursor: pointer; transition: var(--t); flex-shrink: 0; }
+.folder-head .fp-up:hover { background: var(--surface-hov); color: var(--orange); }
+.folder-head .fp-up.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+.folder-path { padding: 8px 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-sec); background: var(--surface); border-bottom: 1px solid var(--border); word-break: break-all; flex-shrink: 0; }
+.folder-list { flex: 1; overflow-y: auto; padding: 6px 0; min-height: 120px; }
+.folder-item { padding: 9px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.84rem; transition: var(--t); }
+.folder-item:hover { background: var(--surface-hov); }
+.folder-item i { color: var(--orange); font-size: 0.82rem; flex-shrink: 0; }
+.folder-empty { padding: 28px 16px; text-align: center; color: var(--text-sec); font-size: 0.8rem; }
+.folder-empty i { font-size: 1.4rem; opacity: 0.4; margin-bottom: 8px; display: block; }
+.folder-foot { padding: 10px 16px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.folder-foot .fp-btn { padding: 7px 16px; border-radius: var(--rsm); font-size: 0.8rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: var(--t); }
+.folder-foot .fp-btn:hover { background: var(--surface-hov); }
+.folder-foot .fp-btn.primary { background: var(--orange); color: #1a1a1a; border-color: var(--orange); font-weight: 600; }
+.folder-foot .fp-btn.primary:hover { filter: brightness(1.08); }
+/* >>> DRIVES_CSS >>> */
+/* ===== FOLDER PICKER: DRIVE CHIPS ===== */
+.fp-drives { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.fp-drives:empty { display: none; padding: 0; border-bottom: 0; }
+.fp-drive { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--rsm); background: var(--bg); border: 1px solid var(--border); color: var(--text-sec); font-size: 0.74rem; font-family: 'JetBrains Mono', monospace; cursor: pointer; transition: var(--t); user-select: none; }
+.fp-drive i { font-size: 0.68rem; }
+.fp-drive:hover { background: var(--surface-hov); color: var(--orange); border-color: var(--orange); }
+.fp-drive.active { background: var(--orange-soft); color: var(--orange); border-color: var(--orange); font-weight: 600; }
+/* <<< DRIVES_CSS <<< */
+/* <<< FOLDER_PICKER_CSS <<< */
 </style>
 </head>
 <body>
@@ -413,7 +514,7 @@ body {
     <!-- =================== HEADER =================== -->
     <header class="header">
         <div class="logo">
-            <div class="logo-mark"><i class="fas fa-wave-square"></i></div>
+            <!-- >>> LOGO_FROG_V2 >>> слева только текст, лягушка перенесена справа -->
             <div>
                 <span class="logo-text">RozittaTranscriber</span>
                 <span class="logo-sub">Видео/аудио → Markdown · faster-whisper</span>
@@ -425,11 +526,11 @@ body {
                 <span id="srv-text">—</span>
                 <span class="port">:8010</span>
             </div>
-            <div class="status-pill" id="dev-pill" title="Устройство опредится при запуске" style="display:none;">
+            <!-- >>> DEVPILL_ALWAYS >>> -->
+            <div class="status-pill" id="dev-pill" title="Устройство: cuda=float16 если CUDA работает, иначе cpu=int8">
                 <i class="fas fa-microchip" style="color:var(--orange); font-size:0.72rem;"></i>
                 <span id="dev-text"></span>
-            </div>
-        </div>
+            </div>        </div>
     </header>
 
     <!-- mock banner -->
@@ -438,21 +539,21 @@ body {
         <span id="banner-text">Готов к работе. Укажите папку с медиа и нажмите «Запустить». Модели faster-whisper берутся из локального кэша.</span>
     </div>
 
-    <!-- =================== SETTINGS BAR =================== -->
-    <div class="settings-wrap">
-        <div class="settings-card">
+        <!-- =================== WORKSPACE (3 cols, like RozittaParser) ===================
+         LEVA:  настройки (сужено, было full-width сверху)
+         SRED:  очередь (верх) + превью (низ, растянуто на всю высоту)
+         PRAV:  лягушка (верх, фикс.) + пояснения + логи (как RozittaWidget)
+    ==================== -->
+    <div class="workspace">
 
-            <!-- COLLAPSED SUMMARY (показывается после запуска) -->
+        <!-- ============ LEFT: SETTINGS (narrowed column) ============ -->
+        <div class="col col-left">
+            <div class="card">
+                <!-- COLLAPSED SUMMARY (показывается после запуска) -->
             <div class="settings-summary" id="summary">
                 <i class="fas fa-check-circle" style="color:var(--success);"></i>
-                <div class="summary-text">
-                    <span class="acc">large-v3-turbo</span><span class="sep">·</span>
-                    ru<span class="sep">·</span>
-                    VAD<span class="sep">·</span>
-                    таймкоды<span class="sep">·</span>
-                    пропуск готовых<span class="sep">·</span>
-                    <span style="color:var(--pink);">D:/Коллекция/орхидеи/видео</span> → transcripts
-                </div>
+                <!-- >>> SUMMARY_DYNAMIC >>> динамический summary, заполняется через updateSummary() -->
+                <div class="summary-text" id="summary-text"></div>
                 <button class="btn" onclick="toggleSettings(true)"><i class="fas fa-pen"></i> Изменить</button>
             </div>
 
@@ -581,21 +682,20 @@ body {
                     <button class="btn btn-ghost-danger btn-lg" id="btn-stop"><i class="fas fa-stop"></i> Стоп (с сохранением)</button>
                 </div>
             </div>
+            </div>
         </div>
-    </div>
 
-    <!-- =================== WORKSPACE =================== -->
-    <div class="workspace">
+        <!-- ============ MIDDLE: QUEUE (top) + PREVIEW (bottom, stretched) ============ -->
+        <div class="col col-mid">
 
-        <!-- LEFT: QUEUE -->
-        <div class="col col-left">
+            <!-- QUEUE -->
             <div class="card">
                 <div class="card-head">
                     <div class="card-title"><i class="fas fa-list-ol"></i> Очередь файлов</div>
                     <div class="count-chips">
-                        <span class="cnt green"><i class="fas fa-check"></i> 4</span>
-                        <span class="cnt orange"><i class="fas fa-spinner fa-spin"></i> 1</span>
-                        <span class="cnt gray"><i class="fas fa-clock"></i> 7</span>
+                        <span class="cnt green"><i class="fas fa-check"></i> 0</span>
+                        <span class="cnt orange"><i class="fas fa-play"></i> 0</span>
+                        <span class="cnt gray"><i class="fas fa-clock"></i> 0</span>
                         <span class="cnt red"><i class="fas fa-exclamation"></i> 0</span>
                     </div>
                 </div>
@@ -603,62 +703,74 @@ body {
                     <div class="empty-state" id="empty-state">
                         <i class="fas fa-folder-open"></i>
                         <div class="empty-title">Очередь пуста</div>
-                        <div class="empty-desc">Укажите папку с медиа выше и нажмите «Запустить».<br>Файлы появятся здесь с прогрессом в реальном времени.</div>
+                        <div class="empty-desc">Укажите папку с медиа слева и нажмите «Запустить».<br>Файлы появятся здесь с прогрессом в реальном времени.</div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- RIGHT: PREVIEW (desktop) -->
-        <div class="col col-right">
+            <!-- PREVIEW (stretched to full height) -->
             <div class="card">
-                <div class="right-tabs">
-                    <button class="right-tab active" data-tab="preview"><i class="fas fa-file-alt"></i> Превью</button>
-                    <button class="right-tab" data-tab="log"><i class="fas fa-terminal"></i> Лог</button>
+                <div class="card-head">
+                    <div class="card-title"><i class="fas fa-file-alt"></i> Превью</div>
                     <div class="right-actions">
                         <button class="file-action" id="btn-copy" title="Копировать"><i class="fas fa-copy"></i></button>
                         <button class="file-action" id="btn-download" title="Скачать .md"><i class="fas fa-download"></i></button>
                     </div>
                 </div>
-                <!-- preview tab -->
-                <div id="tab-preview" style="display:flex; flex-direction:column; flex:1; min-height:0;">
-                    <div class="preview-file-bar">
-                        <i class="fas fa-file-code" style="color:var(--orange); font-size:0.74rem;"></i>
-                        <span class="fname" id="preview-name">— выберите файл —</span>
-                        <span class="badge-part" id="preview-badge" style="display:none;">.part</span>
+                <div class="preview-file-bar">
+                    <i class="fas fa-file-code" style="color:var(--orange); font-size:0.74rem;"></i>
+                    <span class="fname" id="preview-name">— выберите файл —</span>
+                    <span class="badge-part" id="preview-badge" style="display:none;">.part</span>
+                </div>
+                <div class="speakers-panel" id="speakers-panel" style="display:none;">
+                    <div class="speakers-panel-head">
+                        <i class="fas fa-user-tag" style="color:var(--orange);font-size:0.78rem;"></i>
+                        <span class="speakers-panel-title">Спикеры в этом файле</span>
                     </div>
-                    <div class="speakers-panel" id="speakers-panel" style="display:none;">
-                        <div class="speakers-panel-head">
-                            <i class="fas fa-user-tag" style="color:var(--orange);font-size:0.78rem;"></i>
-                            <span class="speakers-panel-title">Спикеры в этом файле</span>
-                        </div>
-                        <div class="speakers-tip">
-                            <i class="fas fa-hand-pointer"></i>
-                            <span>Кликните по <b>SPEAKER_00</b> прямо в тексте превью ниже — появится поле для ввода имени. Или задайте имена в полях здесь, затем нажмите «Применить имена».</span>
-                        </div>
-                        <div class="speakers-list" id="speakers-list"></div>
-                        <div class="speakers-actions">
-                            <button class="btn-sm primary" id="btn-apply-speakers"><i class="fas fa-check"></i> Применить имена</button>
-                            <button class="btn-sm" id="btn-reset-speakers"><i class="fas fa-undo"></i> Сбросить</button>
-                        </div>
+                    <div class="speakers-tip">
+                        <i class="fas fa-hand-pointer"></i>
+                        <span>Кликните по <b>SPEAKER_00</b> прямо в тексте превью ниже — появится поле для ввода имени. Или задайте имена в полях здесь, затем нажмите «Применить имена».</span>
                     </div>
-                    <div class="card-body" style="padding:0;">
-                        <div class="preview-md" id="preview-md"><div style="text-align:center;padding:48px 16px;"><img src="/static/rozitta.png" alt="Rozitta" style="width:104px;height:104px;border-radius:20px;opacity:0.9;margin-bottom:16px;"><div class="live" style="font-size:0.74rem;line-height:1.6;">Выберите файл слева — здесь появится распознанный текст.<br>Спикеры будут обозначены разными цветами.</div></div></div>
-                    </div>
-                    <div class="card-foot" id="preview-foot">
-                        <span><i class="fas fa-chart-bar" style="color:var(--orange);"></i> <span id="p-words">0</span> сл.</span>
-                        <span class="dot">·</span>
-                        <span><i class="fas fa-file"></i> <span id="p-size">0</span> КБ</span>
-                        <span class="dot" style="margin-left:auto;">·</span>
-                        <span id="p-state" style="color:var(--text-sec);">—</span>
+                    <div class="speakers-list" id="speakers-list"></div>
+                    <div class="speakers-actions">
+                        <button class="btn-sm primary" id="btn-apply-speakers"><i class="fas fa-check"></i> Применить имена</button>
+                        <button class="btn-sm" id="btn-reset-speakers"><i class="fas fa-undo"></i> Сбросить</button>
                     </div>
                 </div>
-                <!-- log tab -->
-                <div id="tab-log" style="display:none; flex:1; min-height:0; overflow-y:auto;" class="card-body">
+                <div class="card-body" style="padding:0; flex:1; min-height:0;">
+                    <div class="preview-md" id="preview-md"><div class="empty-state"><i class="fas fa-file-alt"></i><div class="empty-title">Превью появится здесь</div><div class="empty-desc">Выберите файл в очереди — здесь появится распознанный текст.<br>Спикеры будут обозначены разными цветами.</div></div></div>
+                </div>
+                <div class="card-foot" id="preview-foot">
+                    <span><i class="fas fa-chart-bar" style="color:var(--orange);"></i> <span id="p-words">0</span> сл.</span>
+                    <span class="dot">·</span>
+                    <span><i class="fas fa-file"></i> <span id="p-size">0</span> КБ</span>
+                    <span class="dot" style="margin-left:auto;">·</span>
+                    <span id="p-state" style="color:var(--text-sec);">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ RIGHT: FROG + EXPLANATIONS + LOGS (like parser) ============ -->
+        <div class="col col-right-panel">
+            <!-- Character (frog avatar, fixed at top, clickable → croaking sound) -->
+            <div class="char-wrap">
+                <div class="frog-avatar" id="frog-avatar" title="Квак! 🐸 (кликни)">
+                    <img src="/static/rozitta.png" alt="Rozitta">
+                </div>
+                <div class="char-name">Розитта</div>
+            </div>
+            <!-- >>> LAYOUT_V4 >>> explanations block removed (info overload) -->
+            <!-- Logs (flex, scrollable) -->
+            <div class="right-logs">
+                <div class="right-logs-head">
+                    <i class="fas fa-terminal"></i> Журнал
+                </div>
+                <div class="right-logs-body">
                     <div class="log-panel" id="log-panel"></div>
                 </div>
             </div>
         </div>
+
     </div>
 
     <!-- =================== FOOTER =================== -->
@@ -694,6 +806,28 @@ body {
     </div>
 </div>
 
+<!-- >>> FOLDER_PICKER_HTML >>> -->
+<!-- =================== FOLDER PICKER =================== -->
+<div class="folder-overlay" id="fp-overlay"></div>
+<div class="folder-modal" id="folder-modal" role="dialog" aria-modal="true" aria-label="Выбор папки">
+    <div class="folder-head">
+        <i class="fas fa-folder-open" style="color:var(--orange);"></i>
+        <span class="fp-title" id="fp-title">Выбор папки</span>
+        <button class="fp-up" id="fp-up" title="На уровень вверх" type="button"><i class="fas fa-level-up-alt"></i></button>
+    </div>
+    <div class="folder-path" id="fp-path">/</div>
+    <div class="fp-drives" id="fp-drives"></div>
+    <div class="folder-list" id="fp-list"></div>
+    <div class="folder-foot">
+        <button class="fp-btn" id="fp-cancel" type="button">Отмена</button>
+        <button class="fp-btn primary" id="fp-ok" type="button">Выбрать</button>
+    </div>
+</div>
+<!-- <<< FOLDER_PICKER_HTML <<< -->
+
+<!-- >>> LAYOUT_V3 >>> звук лягушки (как RozittaWidget в парсере) -->
+<audio id="frog-sound" src="/static/frog-croaking-x1.wav" preload="auto"></audio>
+
 <script>
 // ===================== HELPERS =====================
 const $ = (id) => document.getElementById(id);
@@ -725,9 +859,43 @@ let tasksMap = {};           // name -> task
 let running = false;
 
 // ===================== SETTINGS =====================
+// >>> SUMMARY_DYNAMIC >>> обновление свёрнутого summary реальными значениями из полей
+function updateSummary() {
+    const model = getSelectedModel();
+    const lang = $('f-lang') ? $('f-lang').value : 'ru';
+    const vad = getToggle('vad') ? 'VAD' : 'без VAD';
+    const tc = getToggle('timecodes') ? 'таймкоды' : 'без таймкодов';
+    const skip = getToggle('skip') ? 'пропуск готовых' : 'все файлы';
+    let inp = $('f-input').value.trim();
+    let out = $('f-output').value.trim();
+    if (!inp) inp = '— папка не выбрана —';
+    if (!out) {
+        try { out = inp.replace(/[\\/]+$/, '') + '/transcripts'; }
+        catch (e) { out = 'transcripts'; }
+    }
+    const el = $('summary-text');
+    if (!el) return;
+    el.innerHTML =
+        '<span class="acc">' + esc(model) + '</span><span class="sep">·</span>' +
+        esc(lang) + '<span class="sep">·</span>' +
+        esc(vad) + '<span class="sep">·</span>' +
+        esc(tc) + '<span class="sep">·</span>' +
+        esc(skip) + '<span class="sep">·</span>' +
+        '<span style="color:var(--pink);">' + esc(inp) + '</span> → ' + esc(out);
+}
+
 function toggleSettings(expand) {
     $('form').classList.toggle('hide', !expand);
     $('summary').classList.toggle('show', !expand);
+    if (!expand) updateSummary();
+    // >>> TOGGLE_BANNER >>> при открытии настроек — сбрасываем stale-баннер
+    // (чтобы не висело «Транскрипция завершена...» от прошлого запуска)
+    if (expand) {
+        const banner = $('banner-text');
+        if (banner && /завершена|запущена|остановл/i.test(banner.textContent)) {
+            banner.textContent = 'Проверьте параметры и нажмите «Запустить».';
+        }
+    }
 }
 
 function getSelectedModel() {
@@ -765,8 +933,14 @@ function collectOptions() {
 // ===================== API =====================
 async function apiStart() {
     const opts = collectOptions();
+    // >>> START_CHECK >>> подсветка поля + красный баннер если папка пустая
     if (!opts.input_dir) {
-        setBanner('Укажите папку с медиа.', 'warn');
+        setBanner('<b style="color:var(--error);">Укажите папку с медиа</b> — поле «Папка с медиа» пустое. Нажмите на иконку папки справа в поле, чтобы выбрать.', 'warn');
+        const fld = $('f-input');
+        fld.style.borderColor = 'var(--error)';
+        fld.style.boxShadow = '0 0 0 3px rgba(255,77,77,0.18)';
+        fld.focus();
+        setTimeout(() => { fld.style.borderColor=''; fld.style.boxShadow=''; }, 2500);
         return;
     }
     $('btn-start').disabled = true;
@@ -782,6 +956,13 @@ async function apiStart() {
         } else {
             toggleSettings(false);
             setBanner('Транскрибация запущена: ' + j.message, 'info');
+            // >>> FOLDER_LS >>> сохраняем папки в localStorage — восстановим при следующем запуске
+            try {
+                localStorage.setItem('rt_input_dir', opts.input_dir);
+                if (opts.output_dir) localStorage.setItem('rt_output_dir', opts.output_dir);
+                localStorage.setItem('rt_model', opts.model);
+                localStorage.setItem('rt_language', opts.language);
+            } catch (e) {}
         }
     } catch (e) {
         setBanner('Ошибка сети: ' + e.message, 'warn');
@@ -816,9 +997,11 @@ function renderStatus(s) {
     else if (s.state === 'finished') { dot.className = 'status-dot'; txt.textContent = 'Завершено'; }
     else { dot.className = 'status-dot'; txt.textContent = 'Готов'; }
 
+    // dev-pill всегда видим — показываем реальное устройство
     if (s.device) {
-        $('dev-pill').style.display = 'flex';
         $('dev-text').textContent = `${s.device} · ${s.compute_type}`;
+    } else {
+        $('dev-text').textContent = 'device при запуске';
     }
     // footer
     $('ft-model').textContent = s.model || '—';
@@ -846,6 +1029,15 @@ function renderQueue(tasks) {
     const body = $('queue-body');
     tasksMap = {};
     tasks.forEach(t => tasksMap[t.name] = t);
+
+    // >>> QUEUE_SORT >>> сортировка: running → queued → error → done/skipped/stopped
+    // внутри групп — по алфавиту. Активный файл всегда наверху.
+    const ORDER = { running: 0, queued: 1, error: 2, done: 3, skipped: 4, stopped: 5 };
+    tasks = [...tasks].sort((a, b) => {
+        const oa = ORDER[a.status] ?? 9, ob = ORDER[b.status] ?? 9;
+        if (oa !== ob) return oa - ob;
+        return (a.name || '').localeCompare(b.name || '');
+    });
 
     if (!tasks.length) {
         body.innerHTML = `<div class="empty-state"><i class="fas fa-folder-open"></i>
@@ -1180,17 +1372,8 @@ async function refreshStatus() {
     } catch {}
 }
 
-// ===================== TABS =====================
-document.querySelectorAll('.right-tab').forEach(t => {
-    t.addEventListener('click', () => {
-        document.querySelectorAll('.right-tab').forEach(x => x.classList.remove('active'));
-        t.classList.add('active');
-        const tab = t.dataset.tab;
-        $('tab-preview').style.display = tab === 'preview' ? 'flex' : 'none';
-        $('tab-log').style.display = tab === 'log' ? 'block' : 'none';
-        if (tab === 'log') $('tab-log').scrollTop = $('tab-log').scrollHeight;
-    });
-});
+// ===================== TABS (убраны — лог в правой панели) =====================
+// >>> LAYOUT_V3 >>> вкладка «Лог» перенесена в правую панель (всегда видна)
 
 // ===================== EVENTS =====================
 $('btn-start').addEventListener('click', apiStart);
@@ -1204,14 +1387,25 @@ $('btn-download').addEventListener('click', () => {
     if (currentStem) window.open(apiUrl('/api/download?stem='+encodeURIComponent(currentStem)), '_blank');
 });
 
+// >>> SUMMARY_DYNAMIC >>> live-update summary при изменении полей
+['f-input', 'f-output', 'f-lang'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', () => {
+        if (!$('summary').classList.contains('show')) updateSummary();
+    });
+});
 // chips
 document.querySelectorAll('#model-chips .chip').forEach(c => c.addEventListener('click', () => {
     document.querySelectorAll('#model-chips .chip').forEach(x => x.classList.remove('on'));
     c.classList.add('on');
     $('ft-model').textContent = c.dataset.model;
+    if (!$('summary').classList.contains('show')) updateSummary();
 }));
 // toggles
-document.querySelectorAll('.toggle').forEach(t => t.addEventListener('click', () => t.classList.toggle('on')));
+document.querySelectorAll('.toggle').forEach(t => t.addEventListener('click', () => {
+    t.classList.toggle('on');
+    if (!$('summary').classList.contains('show')) updateSummary();
+}));
 // speaker rename handlers in preview
 attachSpkHandlers();
 // speakers panel: apply / reset buttons
@@ -1243,15 +1437,191 @@ $('btn-reset-speakers').addEventListener('click', () => {
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
 })();
 
+// >>> FOLDER_PICKER_JS >>>
+// ===================== FOLDER PICKER =====================
+const fpState = { target: null, current: '', dirs: [], roots: [], rootsLoaded: false };
+
+function fpParentOf(p) {
+    if (!p) return '';
+    let s = String(p).replace(/[\\/]+$/, '');
+    const idx = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+    if (idx <= 0) return s;
+    let parent = s.substring(0, idx).replace(/[\\/]+$/, '');
+    if (/^[A-Za-z]:$/.test(parent)) parent += '\\';
+    return parent;
+}
+
+async function fpLoad(path) {
+    try {
+        const r = await fetch(apiUrl('/api/browse') + '?path=' + encodeURIComponent(path || ''));
+        const d = await r.json();
+        if (d.error) { setBanner('Папки не загрузились: ' + d.error, 'error'); return; }
+        fpState.current = d.path || '';
+        fpState.dirs = Array.isArray(d.dirs) ? d.dirs : [];
+        fpRender();
+    } catch (e) {
+        setBanner('Папки не загрузились: ' + e, 'error');
+    }
+}
+
+function fpRender() {
+    const pathEl = $('fp-path');
+    const listEl = $('fp-list');
+    if (pathEl) pathEl.textContent = fpState.current || '/';
+    if (!listEl) return;
+    if (!fpState.dirs.length) {
+        listEl.innerHTML = '<div class="folder-empty"><i class="fas fa-folder"></i>Нет подпапок</div>';
+    } else {
+        listEl.innerHTML = fpState.dirs.map(function(p) {
+            const parts = p.split(/[\\/]/);
+            const name = parts[parts.length - 1] || p;
+            const safe = p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            return '<div class="folder-item" data-path="' + safe + '"><i class="fas fa-folder"></i><span>' + safeName + '</span></div>';
+        }).join('');
+    }
+    const upBtn = $('fp-up');
+    if (upBtn) {
+        const parent = fpParentOf(fpState.current);
+        const atRoot = !parent || parent === String(fpState.current).replace(/[\\/]+$/, '');
+        upBtn.classList.toggle('disabled', atRoot);
+    }
+    fpRenderDrives();
+}
+
+function openFolderPicker(target) {
+    fpState.target = target;
+    $('fp-overlay').classList.add('show');
+    $('folder-modal').classList.add('show');
+    const inp = $(target === 'output' ? 'f-output' : 'f-input');
+    const startPath = (inp && inp.value && inp.value.trim()) ? inp.value.trim() : '';
+    if (!fpState.rootsLoaded) fpLoadRoots();
+    fpLoad(startPath);
+}
+
+function closeFolderPicker() {
+    $('fp-overlay').classList.remove('show');
+    $('folder-modal').classList.remove('show');
+}
+
+function fpOk() {
+    if (!fpState.target) return;
+    const inp = $(fpState.target === 'output' ? 'f-output' : 'f-input');
+    if (inp) inp.value = fpState.current;
+    closeFolderPicker();
+}
+
+function fpUp() {
+    const parent = fpParentOf(fpState.current);
+    if (!parent || parent === String(fpState.current).replace(/[\\/]+$/, '')) return;
+    fpLoad(parent);
+}
+
+// делегирование кликов по списку папок
+ $('fp-list').addEventListener('click', function(e) {
+    const item = e.target.closest('.folder-item');
+    if (!item) return;
+    fpLoad(item.dataset.path);
+});
+// открыть / вверх / отмена / выбрать / клик вне / Escape
+ $('f-input-btn').addEventListener('click', function() { openFolderPicker('input'); });
+ $('f-output-btn').addEventListener('click', function() { openFolderPicker('output'); });
+ $('fp-up').addEventListener('click', fpUp);
+ $('fp-cancel').addEventListener('click', closeFolderPicker);
+ $('fp-ok').addEventListener('click', fpOk);
+ $('fp-overlay').addEventListener('click', closeFolderPicker);
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && $('fp-overlay').classList.contains('show')) closeFolderPicker();
+});
+// <<< FOLDER_PICKER_JS <<<
+
+// >>> DRIVES_JS >>>
+// ===================== DRIVE SWITCHER =====================
+async function fpLoadRoots() {
+    if (fpState.rootsLoaded) return;
+    try {
+        const r = await fetch(apiUrl('/api/drives'));
+        const d = await r.json();
+        fpState.roots = Array.isArray(d.roots) ? d.roots : [];
+        fpState.rootsLoaded = true;
+        fpRenderDrives();
+    } catch (e) { /* молча — чипы просто не покажутся */ }
+}
+
+function fpDriveLabel(root) {
+    // Windows: 'C:\\' -> 'C:' ; Unix: '/' -> '/', '/mnt/usb' -> 'usb'
+    const m = String(root).match(/^([A-Za-z]:)[\\/]??$/);
+    if (m) return m[1];
+    if (root === '/') return '/';
+    const parts = String(root).replace(/[\\/]+$/, '').split(/[\\/]/);
+    return parts[parts.length - 1] || root;
+}
+
+function fpIsCurrentRoot(root) {
+    const c = String(fpState.current || '');
+    if (!c) return false;
+    const cn = c.replace(/[\\/]+$/, '');
+    const rn = String(root).replace(/[\\/]+$/, '');
+    if (cn === rn) return true;
+    return cn.length > rn.length && (cn.startsWith(rn + '\\') || cn.toLowerCase().startsWith(rn.toLowerCase() + '/'));
+}
+
+function fpRenderDrives() {
+    const box = $('fp-drives');
+    if (!box) return;
+    if (!fpState.roots || fpState.roots.length <= 1) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+    }
+    box.style.display = 'flex';
+    box.innerHTML = fpState.roots.map(function(r) {
+        const safe = String(r).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const label = fpDriveLabel(r).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const active = fpIsCurrentRoot(r) ? ' active' : '';
+        return '<div class="fp-drive' + active + '" data-root="' + safe + '" title="' + safe + '"><i class="fas fa-hdd"></i> ' + label + '</div>';
+    }).join('');
+}
+
+ $('fp-drives').addEventListener('click', function(e) {
+    const chip = e.target.closest('.fp-drive');
+    if (!chip) return;
+    fpLoad(chip.dataset.root);
+});
+// <<< DRIVES_JS <<<
+
 function closeSheet() {
     $('sheet').classList.remove('show');
     $('overlay').classList.remove('show');
 }
 
 // ===================== INIT =====================
+// >>> SUMMARY_DYNAMIC >>> заполнить summary при загрузке
+try { updateSummary(); } catch (e) {}
+// >>> INIT_LS >>> восстановление папок из localStorage
+(function restoreFromLS() {
+    try {
+        const inp = localStorage.getItem('rt_input_dir');
+        const out = localStorage.getItem('rt_output_dir');
+        const mdl = localStorage.getItem('rt_model');
+        const lng = localStorage.getItem('rt_language');
+        if (inp) $('f-input').value = inp;
+        if (out) $('f-output').value = out;
+        if (mdl) {
+            document.querySelectorAll('#model-chips .chip').forEach(c => {
+                c.classList.toggle('on', c.dataset.model === mdl);
+            });
+            const fc = document.querySelector('#model-chips .chip.on');
+            if (fc) $('ft-model').textContent = fc.dataset.model;
+        }
+        if (lng) { const ls = $('f-lang'); if (ls) ls.value = lng; }
+    } catch (e) {}
+})();
 refreshStatus();
 connectWS();
 </script>
 
 </body>
+
+<!-- >>> UI5_LAYOUT_FIX >>> applied -->
 </html>

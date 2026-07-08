@@ -230,6 +230,49 @@ async def api_browse(path: str = Query("")):
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
+# >>> DRIVES_SERVER >>>
+@app.get("/api/drives")
+async def api_drives():
+    """Список корневых точек: диски Windows / корень Unix + примонтированные.
+    Возвращает {roots: [str, ...]}."""
+    import os as _os
+    roots = []
+    if _os.name == 'nt':
+        # Windows: psutil (видит сетевые/съёмные), fallback — перебор A..Z
+        try:
+            import psutil  # type: ignore
+            for part in psutil.disk_partitions(all=False):
+                mp = part.mountpoint
+                if mp and _os.path.isdir(mp):
+                    roots.append(mp if mp.endswith('\\') or mp.endswith('/') else mp + '\\')
+        except Exception:
+            for letter in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                p = letter + ':\\'
+                if _os.path.isdir(p):
+                    roots.append(p)
+        seen = set()
+        uniq = []
+        for r in roots:
+            k = r.rstrip('\\/').upper()
+            if k not in seen:
+                seen.add(k)
+                uniq.append(r)
+        roots = sorted(uniq)
+    else:
+        # Unix (Linux/macOS): корень + примонтированные в /mnt, /media, /Volumes
+        roots = ['/']
+        for base in ('/mnt', '/media', '/Volumes'):
+            try:
+                if _os.path.isdir(base):
+                    for entry in sorted(_os.listdir(base)):
+                        full = _os.path.join(base, entry)
+                        if _os.path.isdir(full) and not entry.startswith('.'):
+                            roots.append(full)
+            except Exception:
+                pass
+    return JSONResponse({"roots": roots})
+# <<< DRIVES_SERVER <<<
+
 @app.get("/api/preview")
 async def api_preview(stem: str = Query(...)):
     """Содержимое .md (или .part, если в работе) для превью."""
@@ -332,4 +375,84 @@ if STATIC_DIR.exists():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8010, log_level="info")
+    import threading
+    import time as _time
+    import webbrowser
+    import socket as _socket
+
+    # >>> CUDA_FALLBACK_SERVER >>>
+    PORT = 8010
+
+    def _show_launch_error(text: str):
+        """Показать сообщение об ошибке запуска. tkinter messagebox для
+        PyInstaller --windowed .exe (print туда невидим); fallback на input()."""
+        try:
+            import tkinter as _tk
+            from tkinter import messagebox as _mb
+            _root = _tk.Tk()
+            _root.withdraw()
+            _mb.showerror("RozittaTranscriber — ошибка запуска", text)
+            _root.destroy()
+        except Exception:
+            import sys as _sys
+            print(text, file=_sys.stderr)
+            try:
+                input("\nНажмите Enter для выхода...")
+            except Exception:
+                pass
+
+    # Предварительная проверка: свободен ли порт 8010.
+    # Даёт понятное сообщение вместо системной ошибки uvicorn.
+    _port_busy = False
+    try:
+        _s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        _s.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 0)
+        _s.bind(("0.0.0.0", PORT))
+        _s.close()
+    except OSError:
+        _port_busy = True
+    if _port_busy:
+        _show_launch_error(
+            "Не удалось запустить сервер: порт " + str(PORT) + " уже занят.\n\n"
+            "Возможно, уже открыта другая копия RozittaTranscriber. "
+            "Закройте её (через Диспетчер задач — найдите python.exe / "
+            "RozittaTranscriber.exe) и попробуйте снова."
+        )
+        raise SystemExit(1)
+
+    # Авто-открытие браузера после старта сервера (в отдельном потоке,
+    # чтобы не блокировать uvicorn.run).
+    def _open_browser_after_delay(delay: float = 1.5):
+        _time.sleep(delay)
+        try:
+            webbrowser.open("http://localhost:" + str(PORT) + "/")
+        except Exception:
+            pass
+
+    threading.Thread(target=_open_browser_after_delay, daemon=True).start()
+
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
+    except KeyboardInterrupt:
+        pass  # Ctrl+C — нормальный выход, без сообщения
+    except SystemExit as _se:
+        # uvicorn при ошибке bind кидает SystemExit(code=1) — показываем сообщение.
+        # Нормальный выход (code=0/None) — пропускаем тихо.
+        if _se.code in (0, None):
+            pass
+        else:
+            _show_launch_error(
+                "Сервер завершился с ошибкой (код " + str(_se.code) + ").\n\n"
+                "Скорее всего, порт " + str(PORT) + " был занят другой программой, "
+                "или возникла ошибка при инициализации. "
+                "Проверьте, что не открыта другая копия RozittaTranscriber."
+            )
+            raise
+    except Exception as _e:
+        import traceback as _tb
+        _show_launch_error(
+            "RozittaTranscriber — не удалось запустить сервер.\n\n"
+            "Ошибка: " + str(_e) + "\n\n" + _tb.format_exc()
+        )
+        raise
+    # <<< CUDA_FALLBACK_SERVER <<<

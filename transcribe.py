@@ -35,6 +35,97 @@ import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
+# >>> NVIDIA_DLL_REGISTER >>>
+# >>> NVIDIA_DLL_V2 >>>
+def _register_nvidia_dlls() -> list:
+    """Windows: регистрирует CUDA DLL (cublas, cudnn, cuda runtime) из
+    site-packages/nvidia/* через os.add_dll_directory, чтобы ctranslate2
+    нашёл их без PATH-манипуляций. Без этого на чистом venv получаем
+    'Library cublas64_12.dll is not found'.
+
+    v2: использует importlib.util.find_spec('nvidia').submodule_search_locations
+    вместо nvidia.__file__ (который = None для namespace packages PEP 420).
+    Fallback: site.getsitepackages() + venv paths + glob.
+    Возвращает список путей к зарегистрированным bin-каталогам."""
+    import sys as _sys
+    if _sys.platform != 'win32':
+        return []
+
+    nvidia_dirs = []
+
+    # Способ 1: importlib + submodule_search_locations (правильно для namespace pkg)
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("nvidia")
+        if spec and getattr(spec, 'submodule_search_locations', None):
+            for loc in spec.submodule_search_locations:
+                p = Path(loc)
+                if p.is_dir() and p not in nvidia_dirs:
+                    nvidia_dirs.append(p)
+    except Exception:
+        pass
+
+    # Способ 2: site.getsitepackages()
+    if not nvidia_dirs:
+        try:
+            import site as _site
+            cands = list(getattr(_site, 'getsitepackages', lambda: [])())
+            for sp in cands:
+                nd = Path(sp) / 'nvidia'
+                if nd.is_dir() and nd not in nvidia_dirs:
+                    nvidia_dirs.append(nd)
+        except Exception:
+            pass
+
+    # Способ 3: venv / sys.prefix paths
+    if not nvidia_dirs:
+        try:
+            pyver = f"python{_sys.version_info[0]}.{_sys.version_info[1]}"
+            for base in (_sys.prefix, getattr(_sys, 'base_prefix', _sys.prefix)):
+                for sub in ('Lib/site-packages/nvidia',
+                            f'lib/{pyver}/site-packages/nvidia',
+                            'lib/site-packages/nvidia'):
+                    nd = Path(base) / sub
+                    if nd.is_dir() and nd not in nvidia_dirs:
+                        nvidia_dirs.append(nd)
+        except Exception:
+            pass
+
+    found = []
+    import os as _os
+    for nvidia_dir in nvidia_dirs:
+        # известные подпакеты
+        for sub in ('cublas', 'cudnn', 'cuda_runtime', 'cuda',
+                    'cufft', 'curand', 'cusolver', 'cusparse', 'nccl', 'nvtx'):
+            bindir = nvidia_dir / sub / 'bin'
+            if bindir.is_dir() and str(bindir) not in found:
+                try:
+                    _os.add_dll_directory(str(bindir))
+                    _os.environ["PATH"] = (
+                        str(bindir) + _os.pathsep + _os.environ.get("PATH", "")
+                    )
+                    found.append(str(bindir))
+                except Exception:
+                    pass
+        # fallback: перебрать все nvidia/*/bin
+        try:
+            for child in nvidia_dir.iterdir():
+                bindir = child / 'bin'
+                if bindir.is_dir() and str(bindir) not in found:
+                    try:
+                        _os.add_dll_directory(str(bindir))
+                        _os.environ["PATH"] = (
+                            str(bindir) + _os.pathsep + _os.environ.get("PATH", "")
+                        )
+                        found.append(str(bindir))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+    return found
+
+_NVIDIA_DLLS_FOUND = _register_nvidia_dlls()
+# <<< NVIDIA_DLL_REGISTER <<<
 
 MEDIA_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".mp3",
               ".m4a", ".wav", ".ogg", ".opus", ".flac", ".aac"}
@@ -50,15 +141,38 @@ def fmt_ts(seconds: float) -> str:
     return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
 
 
+# >>> PICK_DEVICE_V2 >>>
+# >>> NVIDIA_DLL_V2 >>>
+_PICK_DEVICE_REASON = ""
+
 def pick_device() -> tuple[str, str]:
-    """Выбор устройства: CUDA, если доступна, иначе CPU."""
+    """Выбор устройства: CUDA, если РЕАЛЬНО доступна (cuBLAS грузится),
+    иначе CPU.
+
+    v2.1: пишет причину выбора в _PICK_DEVICE_REASON для диагностики."""
+    global _PICK_DEVICE_REASON
     try:
         from ctranslate2 import get_cuda_device_count
         if get_cuda_device_count() > 0:
+            # Реальная проверка: пробуем загрузить cuBLAS
+            try:
+                import ctypes
+                import sys as _sys
+                if _sys.platform == 'win32':
+                    ctypes.CDLL("cublas64_12.dll")
+                else:
+                    ctypes.CDLL("libcublas.so.12")
+            except OSError as e:
+                _PICK_DEVICE_REASON = f"cuBLAS не загрузился ({e}) — работаю на CPU"
+                return "cpu", "int8"
+            _PICK_DEVICE_REASON = "CUDA доступна, cuBLAS загрузился"
             return "cuda", "float16"
-    except Exception:
-        pass
+    except Exception as e:
+        _PICK_DEVICE_REASON = f"ctranslate2/GPU недоступен ({e})"
+        return "cpu", "int8"
+    _PICK_DEVICE_REASON = "GPU не обнаружен ctranslate2"
     return "cpu", "int8"
+# <<< PICK_DEVICE_V2 <<<
 
 
 # ---------- состояние одного файла ----------
@@ -298,6 +412,16 @@ class TranscribeManager:
             self.device = device
             self.compute_type = compute_type
             self._log(f"Устройство: {device} ({compute_type}), модель: {opts.model}", "info")
+            # >>> NVIDIA_DLL_V2 >>> диагностика CUDA/DLL
+            try:
+                if _PICK_DEVICE_REASON:
+                    self._log(f"  причина device: {_PICK_DEVICE_REASON}", "info")
+                if _NVIDIA_DLLS_FOUND:
+                    self._log(f"  NVIDIA DLL: {len(_NVIDIA_DLLS_FOUND)} каталогов зарегистрировано", "info")
+                else:
+                    self._log("  NVIDIA DLL не найдены в site-packages (pip install nvidia-cublas-cu12 nvidia-cudnn-cu12)", "warn")
+            except Exception:
+                pass
             self._log("Загрузка модели (при первом запуске — скачивание)...", "info")
             try:
                 from faster_whisper import WhisperModel
@@ -308,7 +432,40 @@ class TranscribeManager:
                 self._emit_state("finished")
                 return
 
-            model = WhisperModel(opts.model, device=device, compute_type=compute_type)
+            # >>> CUDA_FALLBACK_TRANSCRIBE >>>
+            # Загружаем модель; при ошибке CUDA-библиотек (cublas/cudnn/...) —
+            # автоматический fallback на CPU с понятным сообщением.
+            model = None
+            try:
+                model = WhisperModel(opts.model, device=device, compute_type=compute_type)
+            except Exception as _cuda_err:
+                _msg = str(_cuda_err).lower()
+                _is_cuda_lib = any(s in _msg for s in (
+                    "cublas", "cudnn", "cufft", "curand", "cusolver", "cusparse",
+                    "nccl", "cuda", "gpu", "library", ".dll", ".so",
+                ))
+                if device == "cuda" and _is_cuda_lib:
+                    self._log(
+                        "CUDA-библиотеки не найдены (" + str(_cuda_err).strip() + "). "
+                        "Переключаюсь на CPU. Для GPU установите CUDA Toolkit 12.x "
+                        "или: pip install nvidia-cublas-cu12 nvidia-cudnn-cu12",
+                        "warn",
+                    )
+                    device, compute_type = "cpu", "int8"
+                    self.device = device
+                    self.compute_type = compute_type
+                    try:
+                        model = WhisperModel(opts.model, device=device, compute_type=compute_type)
+                    except Exception as _e2:
+                        self._log("Не удалось загрузить модель даже на CPU: " + str(_e2), "error")
+                        self.state = "finished"
+                        self.finished_at = time.time()
+                        self._emit_state("finished")
+                        return
+                else:
+                    # не похоже на проблему CUDA-библиотек — пробрасываем
+                    raise
+            # <<< CUDA_FALLBACK_TRANSCRIBE <<<
             self._log("Модель загружена", "info")
 
             # диаризация (опционально)
@@ -339,9 +496,18 @@ class TranscribeManager:
                     break
                 except Exception as e:
                     task.status = "error"
-                    task.error = str(e)
+                    err_msg = str(e)
+                    # >>> TRANSCRIBE_TRY >>> понятное сообщение для tuple index out of range
+                    if "tuple index out of range" in err_msg:
+                        err_msg = ("не удалось декодировать аудио "
+                                   "(возможно, повреждённый файл или нет звуковой дорожки)")
+                    if "cublas" in err_msg.lower() and "not found" in err_msg.lower():
+                        err_msg = ("CUDA-библиотека cuBLAS не найдена. "
+                                   "Установите: pip install nvidia-cublas-cu12 nvidia-cudnn-cu12, "
+                                   "либо программа переключится на CPU при следующем запуске.")
+                    task.error = err_msg
                     self._emit_progress(task)
-                    self._log(f"ОШИБКА [{task.name}]: {e}", "error")
+                    self._log(f"ОШИБКА [{task.name}]: {err_msg}", "error")
                     self._log(f"Подсказка: можно извлечь аудио — "
                               f'ffmpeg -i "{task.name}" -ac 1 -ar 16000 out.wav', "info")
 
@@ -388,6 +554,30 @@ class TranscribeManager:
                       "3) на https://huggingface.co/pyannote/segmentation-3.0", "warn")
             return None
 
+# >>> AUDIO_PROBE >>>
+    def _probe_audio(self, path: Path) -> tuple:
+        """Pre-check через PyAV: (ok, duration, reason).
+        ok=False если нет аудиопотока или длительность <0.5с.
+        Возвращает кортеж для распаковки в вызывающем коде."""
+        try:
+            import av
+            container = av.open(str(path))
+            audio_streams = [s for s in container.streams if s.type == "audio"]
+            if not audio_streams:
+                container.close()
+                return False, 0.0, "нет аудиодорожки"
+            duration = 0.0
+            for s in audio_streams:
+                if s.duration and s.time_base:
+                    duration = max(duration, float(s.duration * s.time_base))
+            container.close()
+            if duration < 0.5:
+                return False, duration, f"слишком короткое аудио ({duration:.2f}с)"
+            return True, duration, ""
+        except Exception as e:
+            return False, 0.0, f"не удалось открыть контейнер: {e}"
+# <<< AUDIO_PROBE <<<
+
     def _transcribe_file(self, model, task: FileTask, opts: TranscribeOptions, diar_pipeline=None):
         """Транскрибирует один файл. Атомарная запись через .part.
         Если передан diar_pipeline — текст разбивается по спикерам."""
@@ -397,6 +587,15 @@ class TranscribeManager:
         task.status = "running"
         task.started_at = time.time()
         self._emit_progress(task)
+
+        # >>> TRANSCRIBE_TRY >>> pre-check аудио: нет дорожки / слишком короткое
+        ok_audio, _audio_dur, audio_reason = self._probe_audio(task.path)
+        if not ok_audio:
+            task.status = "skipped"
+            task.error = audio_reason
+            self._emit_progress(task)
+            self._log(f"  пропущен: {audio_reason}", "warn")
+            return
 
         segments, info = model.transcribe(
             str(task.path),
