@@ -1617,6 +1617,13 @@ try { updateSummary(); } catch (e) {}
         if (lng) { const ls = $('f-lang'); if (ls) ls.value = lng; }
     } catch (e) {}
 })();
+
+// ===================== FROG SOUND =====================
+// Клик по лягушке - воспроизводим звук.
+document.getElementById('frog-avatar').addEventListener('click', () => {
+    document.getElementById('frog-sound').play();
+});
+
 refreshStatus();
 connectWS();
 </script>
