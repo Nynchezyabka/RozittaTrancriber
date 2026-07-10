@@ -58,20 +58,46 @@
 
 ## 🚀 Быстрый старт
 
-### 1️⃣ Простой запуск (Python уже установлен)
+Нужен **Python 3.10–3.12** (3.13+ не поддерживается whisperX). Скачайте или клонируйте проект, затем запустите установщик — он сам определит видеокарту:
 
 ```bash
 git clone https://github.com/Nynchezyabka/RozittaTranscriber.git
 cd RozittaTranscriber
-pip install -r requirements.txt
-python server.py
+
+install.bat            # Windows (двойной клик или из консоли)
+./install.sh           # Linux / macOS
 ```
 
-Откройте браузер на `http://localhost:8010` — интерфейс готов к работе.
+Установщик проверяет `nvidia-smi` и ставит нужную сборку:
 
-### 2️⃣ Готовая сборка (для Windows)
+| Режим | Когда | Что ставит | Итог |
+|-------|-------|------------|-----|
+| **GPU** | найдена NVIDIA + драйвер | torch CUDA + faster-whisper + nvidia-cublas/cudnn (~4 ГБ) | ускорение в 3–5 раз |
+| **CPU** | нет NVIDIA / AMD / Intel | CPU-torch + faster-whisper, nvidia-* удаляются (~300 МБ) | работает медленнее |
 
-Скачайте .exe из [Releases](https://github.com/Nynchezyabka/RozittaTranscriber/releases) (скоро), распакуйте и запустите `transcriber.exe` — браузер откроется автоматически.
+Можно переопределить вручную: `install.bat --gpu` или `install.bat --cpu`
+(то же для `install.sh`).
+
+> 💡 Для CPU-сборки скрипт хитрит: сначала ставит лёгкий CPU-torch (~200 МБ),
+> затем requirements, и в конце удаляет CUDA-библиотеки `nvidia-*` (~1.93 ГБ),
+> которые ctranslate2 тянет как зависимость, но на CPU не нужны. Итог —
+> скачано ~2 ГБ, в `.venv` осталось ~300 МБ.
+
+После установки — запустите сервер:
+
+```bash
+python server.py       # или start.bat / ./start.sh
+```
+
+Откройте `http://localhost:8010` — интерфейс готов к работе. При первом запуске
+модель `large-v3-turbo` (~1.5 ГБ) скачается в папку `models/`, в журнале будет
+виден прогресс.
+
+### Готовая сборка (для Windows)
+
+Скачайте .exe из [Releases](https://github.com/Nynchezyabka/RozittaTranscriber/releases)
+(скоро), распакуйте и запустите `transcriber.exe` — браузер откроется автоматически.
+CUDA-библиотеки уже внутри, ничего ставить не нужно.
 
 ---
 
