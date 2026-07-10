@@ -130,7 +130,37 @@ _NVIDIA_DLLS_FOUND = _register_nvidia_dlls()
 MEDIA_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".mp3",
               ".m4a", ".wav", ".ogg", ".opus", ".flac", ".aac"}
 
+# >>> MODELS_DIR_FIX >>> модели в папке проекта (не в дефолтном кэше HF)
+# см. пункт 5 от Дмитрия — пользователь должен иметь возможность удалить
+# всё вместе с проектом. Папка models/ должна быть в .gitignore.
+MODELS_DIR = Path(__file__).resolve().parent / "models"
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
+# pyannote/whisperX качают в HF_HOME — направим в нашу папку
+os.environ.setdefault("HF_HOME", str(MODELS_DIR))
+os.environ.setdefault("HF_HUB_CACHE", str(MODELS_DIR))
+
 TIMECODE_STEP = 300  # секунд между метками (5 минут)
+
+# >>> MODEL_PROGRESS >>> ожидаемые размеры моделей (МБ) для оценки прогресса скачивания
+MODEL_SIZES_MB = {
+    "tiny": 75, "base": 145, "small": 480,
+    "medium": 1500, "large-v2": 3000,
+    "large-v3": 3000, "large-v3-turbo": 1500,
+}
+
+# >>> MODEL_PROGRESS >>> проверка: скачана ли модель уже в MODELS_DIR
+def _is_model_cached(model_name: str) -> bool:
+    """True если модель уже скачана (есть snapshots с файлами)."""
+    if not model_name:
+        return False
+    if model_name.startswith(("/", "\\")) or "/" in model_name or "\\" in model_name:
+        # Локальный путь к модели
+        return Path(model_name).exists()
+    repo_dir = MODELS_DIR / f"models--Systran--faster-whisper-{model_name}"
+    snapshots = repo_dir / "snapshots"
+    if not snapshots.exists():
+        return False
+    return any(snapshots.iterdir())
 
 
 def fmt_ts(seconds: float) -> str:
@@ -423,10 +453,28 @@ class TranscribeManager:
             except Exception:
                 pass
             self._log("Загрузка модели (при первом запуске — скачивание)...", "info")
+            self._log(f"Папка моделей: {MODELS_DIR}", "info")  # >>> MODELS_DIR_FIX >>>
+            # >>> MODEL_PROGRESS >>> монитор скачивания в фон
+            need_download = not _is_model_cached(opts.model)
+            monitor_stop = None
+            monitor_thread = None
+            if need_download:
+                expected_mb = MODEL_SIZES_MB.get(opts.model, 0)
+                self._log(f"Скачивание модели {opts.model} (~{expected_mb} МБ), ожидайте...", "info")
+                monitor_stop = threading.Event()
+                monitor_thread = threading.Thread(
+                    target=self._monitor_download,
+                    args=(monitor_stop, expected_mb),
+                    daemon=True
+                )
+                monitor_thread.start()
+            else:
+                self._log("Модель найдена в кэше, загрузка без скачивания...", "info")
             try:
                 from faster_whisper import WhisperModel
             except ImportError:
                 self._log("faster-whisper не установлен. Установите: pip install faster-whisper", "error")
+                if monitor_stop: monitor_stop.set()
                 self.state = "finished"
                 self.finished_at = time.time()
                 self._emit_state("finished")
@@ -437,7 +485,7 @@ class TranscribeManager:
             # автоматический fallback на CPU с понятным сообщением.
             model = None
             try:
-                model = WhisperModel(opts.model, device=device, compute_type=compute_type)
+                model = WhisperModel(opts.model, device=device, compute_type=compute_type, download_root=str(MODELS_DIR))  # >>> MODELS_DIR_FIX >>> модели в папке проекта
             except Exception as _cuda_err:
                 _msg = str(_cuda_err).lower()
                 _is_cuda_lib = any(s in _msg for s in (
@@ -466,6 +514,10 @@ class TranscribeManager:
                     # не похоже на проблему CUDA-библиотек — пробрасываем
                     raise
             # <<< CUDA_FALLBACK_TRANSCRIBE <<<
+            # >>> MODEL_PROGRESS >>> остановка монитора скачивания
+            if monitor_stop:
+                monitor_stop.set()
+                monitor_thread.join(timeout=2)
             self._log("Модель загружена", "info")
 
             # диаризация (опционально)
@@ -524,6 +576,31 @@ class TranscribeManager:
             self.state = "finished"
             self.finished_at = time.time()
             self._emit_state("finished")
+
+    # >>> MODEL_PROGRESS >>> фоновый монитор размера папки MODELS_DIR
+    def _monitor_download(self, stop_event, expected_mb):
+        """Раз в 3 сек измеряет размер MODELS_DIR, шлёт прогресс в журнал."""
+        last_mb = -1
+        while not stop_event.is_set():
+            try:
+                total = 0
+                for f in MODELS_DIR.rglob("*"):
+                    if f.is_file():
+                        try:
+                            total += f.stat().st_size
+                        except OSError:
+                            pass
+                mb = total / (1024 * 1024)
+                if abs(mb - last_mb) >= 1:  # пишем только если изменилось на 1+ МБ
+                    if expected_mb > 0:
+                        pct = min(99, int(mb / expected_mb * 100))
+                        self._log(f"Скачивание модели: {mb:.0f} МБ / ~{expected_mb} МБ ({pct}%)", "info")
+                    else:
+                        self._log(f"Скачивание модели: {mb:.0f} МБ", "info")
+                    last_mb = mb
+            except Exception:
+                pass
+            stop_event.wait(3)
 
     def _load_diarization(self, opts: TranscribeOptions):
         """Пытается загрузить пайплайн диаризации whisperX. Возвращает None при неудаче."""

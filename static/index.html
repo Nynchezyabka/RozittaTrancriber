@@ -17,6 +17,7 @@
     --surface-hov:   rgba(255,255,255,0.10);
     --border:        rgba(255,255,255,0.10);
     --text:          #F0F0F0;
+    --fg:            #F0F0F0;  /* >>> FG_FIX >>> foreground color (alias of --text) */
     --text-sec:      #BBBBBB;
     --orange:        #FF9500;
     --orange-soft:   rgba(255,149,0,0.15);
@@ -574,10 +575,21 @@ body {
                         </div>
                     </div>
                     <div class="field" style="margin-bottom:0;">
-                        <label>Папка для .md</label>
+                        <!-- >>> OUTPUT_MODE_RADIO >>> радиокнопки режима вывода --->
+                        <label>Папка для транскрипций</label>
+                        <div class="radio-row" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
+                            <label class="radio-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.82rem; color:var(--text-sec);">
+                                <input type="radio" name="output-mode" value="auto" id="om-auto" style="cursor:pointer;">
+                                <span>Рядом с исходниками <span style="color:var(--text-ter);">(→ &lt;вход&gt;/transcripts)</span></span>
+                            </label>
+                            <label class="radio-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.82rem; color:var(--text-sec);">
+                                <input type="radio" name="output-mode" value="manual" id="om-manual" style="cursor:pointer;">
+                                <span>Общая папка:</span>
+                            </label>
+                        </div>
                         <div class="inp-wrap has-icon-left">
                             <i class="fas fa-folder ico-left" style="color:var(--text-sec);"></i>
-                            <input class="mono" id="f-output" placeholder="по умолчанию: <вход>/transcripts" value="">
+                            <input class="mono" id="f-output" placeholder="путь к общей папке" value="">
                             <i class="fas fa-folder-open ico-right" id="f-output-btn" title="Выбрать"></i>
                         </div>
                     </div>
@@ -859,6 +871,53 @@ let tasksMap = {};           // name -> task
 let running = false;
 
 // ===================== SETTINGS =====================
+// >>> OUTPUT_DIR_AUTO >>> авто-подстановка папки вывода
+// autoOutput = true → при смене f-input подставляем <input>/transcripts в f-output
+// autoOutput = false → пользователь ввёл свой путь, не трогаем
+let autoOutput = true;
+function autoOutputPath(inputPath) {
+    const clean = String(inputPath || '').replace(/[\\/]+$/, '');
+    if (!clean) return '';
+    const parts = clean.split(/[\\/]/);
+    const lastDir = (parts[parts.length - 1] || '').toLowerCase();
+    // Защита от дублирования: если последняя папка уже 'transcripts' — не добавляем
+    if (lastDir === 'transcripts') return clean;
+    return clean + '/transcripts';
+}
+function syncAutoOutput() {
+    if (!autoOutput) return;
+    const inp = $('f-input').value.trim();
+    const auto = autoOutputPath(inp);
+    if (auto) $('f-output').value = auto;
+}
+
+// >>> OUTPUT_MODE_RADIO >>> явный режим папки вывода
+// 'auto'   → f-output disabled, показывает <вход>/transcripts
+// 'manual' → f-output enabled, пользовательский путь
+let outputMode = 'auto';
+function setOutputMode(mode) {
+    outputMode = mode;
+    autoOutput = (mode === 'auto');  // синхронизируем с v1-флагом
+    const radAuto = $('om-auto');
+    const radMan = $('om-manual');
+    const out = $('f-output');
+    if (radAuto) radAuto.checked = (mode === 'auto');
+    if (radMan) radMan.checked = (mode === 'manual');
+    if (out) {
+        out.disabled = (mode === 'auto');
+        out.readOnly = (mode === 'auto');
+        out.style.opacity = (mode === 'auto') ? '0.55' : '1';
+        out.style.cursor = (mode === 'auto') ? 'not-allowed' : 'text';
+    }
+    const btn = $('f-output-btn');
+    if (btn) btn.style.pointerEvents = (mode === 'auto') ? 'none' : 'auto';
+    if (btn) btn.style.opacity = (mode === 'auto') ? '0.4' : '1';
+    if (mode === 'auto') {
+        syncAutoOutput();  // подставить <вход>/transcripts
+    }
+    try { localStorage.setItem('rt_output_mode', mode); } catch (e) {}
+}
+
 // >>> SUMMARY_DYNAMIC >>> обновление свёрнутого summary реальными значениями из полей
 function updateSummary() {
     const model = getSelectedModel();
@@ -1348,6 +1407,7 @@ function connectWS() {
             if (m.data === 'finished') {
                 refreshStatus();
                 setBanner('Транскрибация завершена. Готовые .md в папке вывода.', 'info');
+                playFrogCroak();  // >>> COMPLETE_SOUND >>> квак при завершении
             }
         }
     };
@@ -1508,6 +1568,13 @@ function fpOk() {
     if (!fpState.target) return;
     const inp = $(fpState.target === 'output' ? 'f-output' : 'f-input');
     if (inp) inp.value = fpState.current;
+    // >>> OUTPUT_DIR_AUTO >>> после выбора через picker
+    if (fpState.target === 'input') {
+        syncAutoOutput();  // подставить <input>/transcripts если autoOutput
+    } else if (fpState.target === 'output') {
+        // >>> OUTPUT_MODE_RADIO >>> выбор f-output через picker → manual
+        setOutputMode('manual');
+    }
     closeFolderPicker();
 }
 
@@ -1524,8 +1591,19 @@ function fpUp() {
     fpLoad(item.dataset.path);
 });
 // открыть / вверх / отмена / выбрать / клик вне / Escape
- $('f-input-btn').addEventListener('click', function() { openFolderPicker('input'); });
- $('f-output-btn').addEventListener('click', function() { openFolderPicker('output'); });
+// >>> OUTPUT_DIR_AUTO >>> слушатели для авто-подстановки папки вывода
+$('f-input').addEventListener('input', syncAutoOutput);
+$('f-output').addEventListener('input', function() { autoOutput = false; });
+// >>> OUTPUT_MODE_RADIO >>> слушатели радиокнопок + f-output → manual
+document.querySelectorAll('input[name="output-mode"]').forEach(function(r) {
+    r.addEventListener('change', function() { setOutputMode(this.value); });
+});
+// ручной ввод в f-output → переключить в manual (если ещё не)
+$('f-output').addEventListener('input', function() {
+    if (outputMode !== 'manual') setOutputMode('manual');
+});
+$('f-input-btn').addEventListener('click', function() { openFolderPicker('input'); });
+$('f-output-btn').addEventListener('click', function() { openFolderPicker('output'); });
  $('fp-up').addEventListener('click', fpUp);
  $('fp-cancel').addEventListener('click', closeFolderPicker);
  $('fp-ok').addEventListener('click', fpOk);
@@ -1603,6 +1681,14 @@ try { updateSummary(); } catch (e) {}
     try {
         const inp = localStorage.getItem('rt_input_dir');
         const out = localStorage.getItem('rt_output_dir');
+        // >>> OUTPUT_DIR_AUTO >>> авто-подстановка после восстановления из LS
+        autoOutput = !out;  // если out не задан — авто-режим
+        // >>> OUTPUT_MODE_RADIO >>> восстановление явного режима вывода
+        let savedMode = localStorage.getItem('rt_output_mode');
+        if (savedMode !== 'auto' && savedMode !== 'manual') savedMode = 'auto';
+        // если в LS есть out, но savedMode=auto → доверяем savedMode (auto победит)
+        // если savedMode=manual, но out пустой → fallback на auto
+        if (savedMode === 'manual' && !out) savedMode = 'auto';
         const mdl = localStorage.getItem('rt_model');
         const lng = localStorage.getItem('rt_language');
         if (inp) $('f-input').value = inp;
@@ -1615,14 +1701,32 @@ try { updateSummary(); } catch (e) {}
             if (fc) $('ft-model').textContent = fc.dataset.model;
         }
         if (lng) { const ls = $('f-lang'); if (ls) ls.value = lng; }
+        // >>> OUTPUT_DIR_AUTO >>> если autoOutput — подставить <input>/transcripts
+        if (autoOutput) syncAutoOutput();
+        // >>> OUTPUT_MODE_RADIO >>> применить восстановленный режим к UI
+        setOutputMode(savedMode);
     } catch (e) {}
 })();
 
 // ===================== FROG SOUND =====================
-// Клик по лягушке - воспроизводим звук.
-document.getElementById('frog-avatar').addEventListener('click', () => {
-    document.getElementById('frog-sound').play();
-});
+// >>> COMPLETE_SOUND >>> рефакторинг: функция для клика И завершения батча
+// (по аналогии с RozittaParser — квак при завершении)
+function playFrogCroak() {
+    const sound = document.getElementById('frog-sound');
+    const frog = document.getElementById('frog-avatar');
+    if (!sound) return;
+    try {
+        sound.currentTime = 0;
+        const pr = sound.play();
+        if (pr && pr.catch) pr.catch(() => {});  // игнор autoplay-рестрикции
+        if (frog) {
+            frog.classList.remove('croaking');
+            void frog.offsetWidth;  // форс reflow для рестарта анимации
+            frog.classList.add('croaking');
+        }
+    } catch (e) {}
+}
+document.getElementById('frog-avatar').addEventListener('click', playFrogCroak);
 
 refreshStatus();
 connectWS();
