@@ -58,6 +58,7 @@ class StartRequest(BaseModel):
     vad_filter: bool = True
     skip_existing: bool = True
     beam_size: int = 5
+    recursive: bool = False  # >>> RECURSIVE_SCAN >>> обход вложенных папок
     # опциональная диаризация через whisperX
     diarize: bool = False
     hf_token: Optional[str] = None
@@ -194,6 +195,7 @@ async def api_start(req: StartRequest):
         vad_filter=req.vad_filter,
         skip_existing=req.skip_existing,
         beam_size=req.beam_size,
+        recursive=req.recursive,  # >>> RECURSIVE_SCAN >>>
         diarize=req.diarize,
         hf_token=req.hf_token,
         min_speakers=req.min_speakers,

@@ -222,15 +222,26 @@ class FileTask:
     word_count: int = 0
     started_at: float = 0.0
     finished_at: float = 0.0
+    rel_path: str = ""  # >>> RECURSIVE_SCAN >>> sub/intro.mp4 (для вложенных)
 
     @property
     def name(self) -> str:
         return self.path.name
 
+    @property
+    def stem(self) -> str:
+        # >>> RECURSIVE_SCAN >>> уникальный ключ: rel_path без расширения.
+        # Для корня = 'intro' (обратно совместимо), для вложенных = 'sub/intro'.
+        if self.rel_path:
+            from pathlib import PurePosixPath
+            return str(PurePosixPath(self.rel_path).with_suffix(""))
+        return self.path.stem
+
     def to_dict(self) -> dict:
         return {
             "name": self.name,
-            "stem": self.path.stem,
+            "stem": self.stem,
+            "rel_path": self.rel_path or self.name,  # >>> RECURSIVE_SCAN >>>
             "size": self.size,
             "duration": self.duration,
             "status": self.status,
@@ -255,6 +266,7 @@ class TranscribeOptions:
     vad_filter: bool = True
     skip_existing: bool = True
     beam_size: int = 5
+    recursive: bool = False  # >>> RECURSIVE_SCAN >>> обход вложенных папок
     # опциональная диаризация через whisperX
     diarize: bool = False
     hf_token: Optional[str] = None
@@ -335,19 +347,39 @@ class TranscribeManager:
             out = self._out_dir_for(opts)
             out.mkdir(parents=True, exist_ok=True)
 
-            files = sorted(p for p in src.iterdir()
-                           if p.is_file() and p.suffix.lower() in MEDIA_EXTS)
+            # >>> RECURSIVE_SCAN >>> обход вложенных папок + зеркальная структура вывода
+            if opts.recursive:
+                files = sorted(
+                    (p for p in src.rglob('*')
+                     if p.is_file() and p.suffix.lower() in MEDIA_EXTS),
+                    key=lambda p: str(p.relative_to(src)).replace('\\', '/'),
+                )
+            else:
+                files = sorted(
+                    (p for p in src.iterdir()
+                     if p.is_file() and p.suffix.lower() in MEDIA_EXTS),
+                    key=lambda p: p.name.lower(),
+                )
             if not files:
                 return False, f"В папке нет медиафайлов: {src}"
 
             self.options = opts
-            self.tasks = [
-                FileTask(
+            self.tasks = []
+            for p in files:
+                rel = p.relative_to(src)
+                rel_str = str(rel).replace('\\', '/')  # нормализуем Windows-слеши
+                rel_parent = rel.parent
+                if str(rel_parent) == '.':
+                    md = out / (p.stem + ".md")
+                else:
+                    md = out / rel_parent / (p.stem + ".md")
+                self.tasks.append(FileTask(
                     path=p,
                     size=p.stat().st_size if p.exists() else 0,
-                    md_path=out / (p.stem + ".md"),
-                ) for p in files
-            ]
+                    md_path=md,
+                    rel_path=rel_str,
+                ))
+            # <<< RECURSIVE_SCAN <<<
             # помечаем уже готовые как skipped
             if opts.skip_existing:
                 for t in self.tasks:
@@ -659,6 +691,7 @@ class TranscribeManager:
         """Транскрибирует один файл. Атомарная запись через .part.
         Если передан diar_pipeline — текст разбивается по спикерам."""
         dst = task.md_path
+        dst.parent.mkdir(parents=True, exist_ok=True)  # >>> RECURSIVE_SCAN >>> для вложенных
         tmp = dst.with_suffix(dst.suffix + ".part")
         t0 = time.monotonic()
         task.status = "running"

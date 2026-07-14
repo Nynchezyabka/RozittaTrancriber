@@ -595,6 +595,13 @@ body {
                     </div>
                 </div>
 
+                <!-- >>> RECURSIVE_SCAN >>> чекбокс рекурсивного обхода --->
+                <label class="rec-opt" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:rgba(255,149,0,0.04); font-size:0.8rem; color:var(--text-sec); cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="f-recursive" style="cursor:pointer; width:16px; height:16px; accent-color:var(--orange); flex-shrink:0;">
+                    <span><b style="color:var(--text);">Включая вложенные папки</b> <span style="color:var(--text-ter);">— рекурсивный обход · структура подпапок сохранится в выводе</span></span>
+                </label>
+                <!-- <<< RECURSIVE_SCAN <<< --->
+
                 <div class="field" style="margin-top:12px;">
                     <label>Модель faster-whisper</label>
                     <div class="chip-group" id="model-chips">
@@ -982,6 +989,7 @@ function collectOptions() {
         vad_filter: getToggle('vad'),
         skip_existing: getToggle('skip'),
         beam_size: beam,
+        recursive: $('f-recursive').checked,  // >>> RECURSIVE_SCAN >>>
         diarize: diarize,
         hf_token: hfToken,
         min_speakers: minSpk,
@@ -1021,6 +1029,7 @@ async function apiStart() {
                 if (opts.output_dir) localStorage.setItem('rt_output_dir', opts.output_dir);
                 localStorage.setItem('rt_model', opts.model);
                 localStorage.setItem('rt_language', opts.language);
+                localStorage.setItem('rt_recursive', opts.recursive ? '1' : '0');  // >>> RECURSIVE_SCAN >>>
             } catch (e) {}
         }
     } catch (e) {
@@ -1087,7 +1096,7 @@ function renderStatus(s) {
 function renderQueue(tasks) {
     const body = $('queue-body');
     tasksMap = {};
-    tasks.forEach(t => tasksMap[t.name] = t);
+    tasks.forEach(t => tasksMap[t.stem] = t);  // >>> RECURSIVE_SCAN >>> ключ — stem (уникальный)
 
     // >>> QUEUE_SORT >>> сортировка: running → queued → error → done/skipped/stopped
     // внутри групп — по алфавиту. Активный файл всегда наверху.
@@ -1107,7 +1116,7 @@ function renderQueue(tasks) {
     // позиция в очереди
     let qpos = 0;
     body.innerHTML = tasks.map(t => {
-        tasksMap[t.name] = t;
+        tasksMap[t.stem] = t;  // >>> RECURSIVE_SCAN >>>
         let posLabel = '';
         if (t.status === 'queued') { qpos++; posLabel = `в очереди · позиция ${qpos}`; }
         const ico = {
@@ -1148,10 +1157,12 @@ function renderQueue(tasks) {
         const action = t.status === 'done'
             ? `<button class="file-action link" data-action="open" data-stem="${esc(t.stem)}"><i class="fas fa-external-link-alt"></i> Открыть</button>`
             : '';
+        // >>> RECURSIVE_SCAN >>> для вложенных показываем rel_path (sub/intro.mp4)
+        const displayName = (t.rel_path && t.rel_path !== t.name) ? t.rel_path : t.name;
         return `<div class="file-row ${cls}${sel}" data-stem="${esc(t.stem)}" data-name="${esc(t.name)}">
             <div class="file-ico ${cls==='running'?'active':cls}">${ico}</div>
             <div class="file-body">
-                <div class="file-name">${esc(t.name)}</div>
+                <div class="file-name">${esc(displayName)}</div>
                 ${progress}
                 <div class="file-meta">${meta}</div>
             </div>
@@ -1691,8 +1702,10 @@ try { updateSummary(); } catch (e) {}
         if (savedMode === 'manual' && !out) savedMode = 'auto';
         const mdl = localStorage.getItem('rt_model');
         const lng = localStorage.getItem('rt_language');
+        const rec = localStorage.getItem('rt_recursive');  // >>> RECURSIVE_SCAN >>>
         if (inp) $('f-input').value = inp;
         if (out) $('f-output').value = out;
+        if (rec === '1') $('f-recursive').checked = true;  // >>> RECURSIVE_SCAN >>>
         if (mdl) {
             document.querySelectorAll('#model-chips .chip').forEach(c => {
                 c.classList.toggle('on', c.dataset.model === mdl);
